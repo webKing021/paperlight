@@ -33,7 +33,12 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            let db_path = app.path().app_data_dir()?.join("paperlight.db");
+            // PAPERLIGHT_DATA_DIR keeps a separate index (demos, screenshots, testing).
+            let data_dir = match std::env::var_os("PAPERLIGHT_DATA_DIR") {
+                Some(dir) => std::path::PathBuf::from(dir),
+                None => app.path().app_data_dir()?,
+            };
+            let db_path = data_dir.join("paperlight.db");
             let db = Db::open(&db_path)?;
             indexer::seed_defaults(&db)?;
             app.manage(AppState::new(db));
