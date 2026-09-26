@@ -199,6 +199,8 @@ pub struct Stats {
     pub total: i64,
     pub total_size: i64,
     pub by_kind: BTreeMap<String, i64>,
+    pub favourites: i64,
+    pub opened: i64,
 }
 
 pub fn stats(conn: &Connection) -> AppResult<Stats> {
@@ -218,7 +220,58 @@ pub fn stats(conn: &Connection) -> AppResult<Stats> {
         stats.total_size += size;
         stats.by_kind.insert(kind, count);
     }
+    (stats.favourites, stats.opened) = conn.query_row(
+        "SELECT (SELECT COUNT(*) FROM files WHERE is_favourite = 1),
+                (SELECT COUNT(*) FROM files WHERE last_opened_at IS NOT NULL)",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
     Ok(stats)
+}
+
+/// Which slice of the index a view shows. Shared by browsing and searching, so every view
+/// can also be searched.
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ViewFilter {
+    pub kind: Option<String>,
+    /// Only files modified at or after this unix-ms timestamp.
+    pub modified_after: Option<i64>,
+    #[serde(default)]
+    pub favourites: bool,
+    /// Only files opened from Paperlight.
+    #[serde(default)]
+    pub opened: bool,
+    pub tag_id: Option<i64>,
+}
+
+impl ViewFilter {
+    /// Extra conditions on alias `f`, each starting with ` AND `, and their arguments.
+    pub fn to_sql(&self) -> (String, Vec<Value>) {
+        let mut sql = String::new();
+        let mut args = Vec::new();
+        if let Some(kind) = &self.kind {
+            sql.push_str(" AND f.kind = ?");
+            args.push(Value::Text(kind.clone()));
+        }
+        if let Some(after) = self.modified_after {
+            sql.push_str(" AND f.modified_at >= ?");
+            args.push(Value::Integer(after));
+        }
+        if self.favourites {
+            sql.push_str(" AND f.is_favourite = 1");
+        }
+        if self.opened {
+            sql.push_str(" AND f.last_opened_at IS NOT NULL");
+        }
+        if let Some(tag) = self.tag_id {
+            sql.push_str(
+                " AND EXISTS (SELECT 1 FROM file_tags ft WHERE ft.file_id = f.id AND ft.tag_id = ?)",
+            );
+            args.push(Value::Integer(tag));
+        }
+        (sql, args)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
@@ -228,14 +281,15 @@ pub enum SortKey {
     Modified,
     Name,
     Size,
+    /// Most recently opened from Paperlight.
+    Opened,
 }
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ListQuery {
-    pub kind: Option<String>,
-    /// Only files modified at or after this unix-ms timestamp.
-    pub modified_after: Option<i64>,
+    #[serde(flatten)]
+    pub filter: ViewFilter,
     #[serde(default)]
     pub sort: SortKey,
     #[serde(default)]
@@ -260,6 +314,8 @@ pub struct FileRow {
     pub is_favourite: bool,
     pub open_count: i64,
     pub last_opened_at: Option<i64>,
+    /// Ids of the tags on this file.
+    pub tags: Vec<i64>,
 }
 
 /// Columns read by [`FileRow::from_row`], for queries that alias `files` as `f`.
@@ -281,8 +337,34 @@ impl FileRow {
             is_favourite: r.get(9)?,
             open_count: r.get(10)?,
             last_opened_at: r.get(11)?,
+            tags: Vec::new(),
         })
     }
+}
+
+/// Fills in `tags` for a page of rows with a single query.
+pub fn attach_tags(conn: &Connection, rows: &mut [FileRow]) -> AppResult<()> {
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let placeholders = vec!["?"; rows.len()].join(",");
+    let mut stmt = conn.prepare(&format!(
+        "SELECT file_id, tag_id FROM file_tags WHERE file_id IN ({placeholders})"
+    ))?;
+    let pairs = stmt.query_map(params_from_iter(rows.iter().map(|r| r.id)), |r| {
+        Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?))
+    })?;
+    let mut by_file: HashMap<i64, Vec<i64>> = HashMap::new();
+    for pair in pairs {
+        let (file, tag) = pair?;
+        by_file.entry(file).or_default().push(tag);
+    }
+    for row in rows {
+        if let Some(tags) = by_file.remove(&row.id) {
+            row.tags = tags;
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Serialize)]
@@ -294,44 +376,31 @@ pub struct Page {
 }
 
 pub fn list_files(conn: &Connection, q: &ListQuery) -> AppResult<Page> {
-    let mut conditions = Vec::new();
-    let mut args: Vec<Value> = Vec::new();
-    if let Some(kind) = &q.kind {
-        conditions.push("kind = ?");
-        args.push(Value::Text(kind.clone()));
-    }
-    if let Some(after) = q.modified_after {
-        conditions.push("modified_at >= ?");
-        args.push(Value::Integer(after));
-    }
-    let where_clause = if conditions.is_empty() {
-        String::new()
-    } else {
-        format!("WHERE {}", conditions.join(" AND "))
-    };
-
+    let (filter_sql, args) = q.filter.to_sql();
     let total: i64 = conn.query_row(
-        &format!("SELECT COUNT(*) FROM files {where_clause}"),
+        &format!("SELECT COUNT(*) FROM files f WHERE 1=1{filter_sql}"),
         params_from_iter(args.iter()),
         |r| r.get(0),
     )?;
 
     let dir = if q.ascending { "ASC" } else { "DESC" };
     let order = match q.sort {
-        SortKey::Modified => format!("modified_at {dir}, name COLLATE NOCASE"),
-        SortKey::Name => format!("name COLLATE NOCASE {dir}"),
-        SortKey::Size => format!("size {dir}, name COLLATE NOCASE"),
+        SortKey::Modified => format!("f.modified_at {dir}, f.name COLLATE NOCASE"),
+        SortKey::Name => format!("f.name COLLATE NOCASE {dir}"),
+        SortKey::Size => format!("f.size {dir}, f.name COLLATE NOCASE"),
+        SortKey::Opened => format!("f.last_opened_at {dir}, f.name COLLATE NOCASE"),
     };
     let limit = q.limit.unwrap_or(200).clamp(1, 1000);
     let offset = q.offset.max(0);
     let sql = format!(
-        "SELECT {FILE_COLUMNS} FROM files f {where_clause}
+        "SELECT {FILE_COLUMNS} FROM files f WHERE 1=1{filter_sql}
          ORDER BY {order} LIMIT {limit} OFFSET {offset}"
     );
     let mut stmt = conn.prepare(&sql)?;
-    let items = stmt
+    let mut items: Vec<FileRow> = stmt
         .query_map(params_from_iter(args.iter()), FileRow::from_row)?
         .collect::<Result<_, _>>()?;
+    attach_tags(conn, &mut items)?;
 
     Ok(Page {
         total,

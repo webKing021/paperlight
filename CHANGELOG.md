@@ -5,6 +5,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added: Milestone 4, smart views
+- Favourites: star any document (hover star, right-click, or Ctrl+D); lamp-amber star on
+  rows; Favourites view with count.
+- Recently opened: every document opened from Paperlight, most recent first.
+- Tags: labels stored only in Paperlight (files are never modified). Create from the
+  sidebar or straight from a document's menu (Ctrl+T), tag chips on rows, a view per tag
+  with counts, and right-click a tag to rename, recolour (7 label-ink colours) or delete.
+- Every view is searchable: search stays inside the current view (type, recent,
+  favourites, opened, tag).
+- Sortable columns (name / modified / size) while browsing.
+- Lists reload every page on screen after an edit or live change, so nothing blanks out.
+- Database migration v2 (tags, file_tags, indexes for opened and favourites), applied in
+  place.
+
 ### Added: Milestone 3, live watching
 - Index follows the disk in real time: new, changed, renamed, moved and deleted documents
   appear within about a second, with no rescans.

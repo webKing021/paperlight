@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{params_from_iter, types::Value, Connection};
 use serde::Deserialize;
 
-use crate::db::files::{FileRow, Page, FILE_COLUMNS};
+use crate::db::files::{attach_tags, FileRow, Page, ViewFilter, FILE_COLUMNS};
 use crate::db::now_ms;
 use crate::error::AppResult;
 
@@ -31,8 +31,8 @@ const EXACT_BASE: f64 = 50.0;
 #[serde(rename_all = "camelCase")]
 pub struct SearchQuery {
     pub text: String,
-    pub kind: Option<String>,
-    pub modified_after: Option<i64>,
+    #[serde(flatten)]
+    pub filter: ViewFilter,
     #[serde(default)]
     pub offset: i64,
     pub limit: Option<i64>,
@@ -59,7 +59,7 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> AppResult<Page> {
         });
     }
 
-    let (filter_sql, filter_args) = filters(q);
+    let (filter_sql, filter_args) = q.filter.to_sql();
     let now = now_ms();
     let mut results: HashMap<i64, Scored> = HashMap::new();
 
@@ -101,32 +101,18 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> AppResult<Page> {
     });
     let total = ranked.len() as i64;
     let limit = q.limit.unwrap_or(200).clamp(1, 1000) as usize;
-    let items = ranked
+    let mut items: Vec<FileRow> = ranked
         .into_iter()
         .skip(offset as usize)
         .take(limit)
         .map(|s| s.row)
         .collect();
+    attach_tags(conn, &mut items)?;
     Ok(Page {
         total,
         offset,
         items,
     })
-}
-
-/// Extra WHERE conditions from the active sidebar view.
-fn filters(q: &SearchQuery) -> (String, Vec<Value>) {
-    let mut sql = String::new();
-    let mut args = Vec::new();
-    if let Some(kind) = &q.kind {
-        sql.push_str(" AND f.kind = ?");
-        args.push(Value::Text(kind.clone()));
-    }
-    if let Some(after) = q.modified_after {
-        sql.push_str(" AND f.modified_at >= ?");
-        args.push(Value::Integer(after));
-    }
-    (sql, args)
 }
 
 fn exact_candidates(
