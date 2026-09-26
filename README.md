@@ -19,3 +19,23 @@ See [PLAN.md](PLAN.md) for the full design and roadmap.
 ## Status
 
 🚧 In development. See the milestones in [PLAN.md](PLAN.md#11-milestones-each--one-feature-branch-merged-to-main-when-done).
+
+## Development
+
+Prerequisites: Node.js 20+, Rust (stable, MSVC toolchain), Visual Studio C++ Build Tools, WebView2.
+
+```bash
+npm install
+npm run tauri dev      # run the app with hot reload
+npm run tauri build    # produce the Windows installer
+```
+
+## Branching
+
+- `main`: stable; every finished feature is merged here
+- `dev`: integration/working branch
+- `feature/*`, `chore/*`: one branch per milestone, merged into `dev` and then into `main`
+
+## License
+
+MIT
