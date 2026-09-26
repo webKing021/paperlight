@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added: open source community
+- CONTRIBUTING (setup, layout, checks, principles), Code of Conduct, security policy, issue
+  forms (bug, feature) and a pull request checklist.
+- README rewritten: short and scannable, screenshot grid of the new UI, and a slot for the
+  demo video.
+
 ### Added: overview with buckets, sliding side panels
 - Overview is the new home: a bucket per document type (PDFs, Word documents,
   Spreadsheets, Presentations) shown as folder-style tiles with a label-ink tab, count,

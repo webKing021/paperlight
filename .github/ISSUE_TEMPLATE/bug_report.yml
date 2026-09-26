@@ -1,0 +1,36 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Search for …
+        3. …
+  - type: input
+    id: version
+    attributes:
+      label: Paperlight version
+      placeholder: "1.1.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 24H2"
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or logs
+      description: Please remove anything private (file names, paths) first.
