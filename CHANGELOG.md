@@ -3,6 +3,16 @@
 All notable changes to Paperlight are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added: choose which file formats are indexed
+- Settings → File formats: tick the formats to index, per type or per extension (with a
+  document count for each). Changes are staged and show what they will do before Apply.
+- Formats turned off leave the index at once (no rescan) and their type disappears from the
+  sidebar; turning one back on runs a diff-only rescan to find its documents.
+- The scanner and live watcher only pick up enabled formats. Formats whose text isn't read
+  (doc, dot, ppt, pps) are marked.
+
 ## [1.0.0] - 2026-09-26
 
 First release. Paperlight indexes every PDF, Word, Excel and PowerPoint file on the chosen

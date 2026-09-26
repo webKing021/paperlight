@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, TAG_COLORS, type Tag } from "../lib/api";
-import { FILE_KINDS, KIND_ORDER } from "../lib/fileKinds";
+import { enabledKinds, FILE_KINDS } from "../lib/fileKinds";
 import { useIndex } from "../stores";
 import { sameView, useUi, type View } from "../stores/ui";
 import { Mark } from "./Mark";
@@ -95,6 +95,7 @@ export function Sidebar() {
   const setView = useUi((s) => s.setView);
   const stats = useIndex((s) => s.overview?.stats);
   const tags = useIndex((s) => s.tags);
+  const disabledFormats = useIndex((s) => s.overview?.disabledFormats);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
 
@@ -121,7 +122,7 @@ export function Sidebar() {
         </Section>
 
         <Section title="Types">
-          {KIND_ORDER.map((kind) => {
+          {enabledKinds(disabledFormats).map((kind) => {
             const target: View = { type: "kind", kind };
             return (
               <NavButton

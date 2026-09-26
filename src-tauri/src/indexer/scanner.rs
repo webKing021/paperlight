@@ -13,7 +13,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use jwalk::{Parallelism, WalkDir};
 use serde::Serialize;
 
-use super::filters::{is_ignored_file, kind_for_ext, Exclusions};
+use super::filters::{is_ignored_file, Exclusions, Formats};
 use super::priority;
 use crate::db::files::{self, FileRecord, Known};
 use crate::db::roots::{self, Root};
@@ -86,9 +86,13 @@ pub fn scan(
     }
     let _guard = BackgroundGuard(background);
 
-    let (root_list, patterns) = {
+    let (root_list, patterns, formats) = {
         let conn = db.reader();
-        (roots::list_roots(&conn)?, roots::list_exclusions(&conn)?)
+        (
+            roots::list_roots(&conn)?,
+            roots::list_exclusions(&conn)?,
+            Formats::load(&conn)?,
+        )
     };
     let exclusions = Arc::new(Exclusions::new(&patterns));
     let pool = priority::walker_pool(background)?;
@@ -107,6 +111,7 @@ pub fn scan(
             db,
             root,
             exclusions: &exclusions,
+            formats: &formats,
             pool: &pool,
             cancel,
         };
@@ -141,6 +146,7 @@ struct Walker<'a> {
     db: &'a Db,
     root: &'a Root,
     exclusions: &'a Arc<Exclusions>,
+    formats: &'a Formats,
     pool: &'a Arc<jwalk::rayon::ThreadPool>,
     cancel: &'a AtomicBool,
 }
@@ -223,7 +229,9 @@ impl Walker<'_> {
                 continue;
             }
             let name = entry.file_name().to_string_lossy().into_owned();
-            let Some(record) = to_record(&entry.path(), name, || entry.metadata().ok()) else {
+            let Some(record) =
+                to_record(&entry.path(), name, self.formats, || entry.metadata().ok())
+            else {
                 continue;
             };
             summary.files_found += 1;
@@ -270,11 +278,12 @@ impl Walker<'_> {
 pub fn to_record(
     path: &Path,
     name: String,
+    formats: &Formats,
     metadata: impl FnOnce() -> Option<std::fs::Metadata>,
 ) -> Option<FileRecord> {
     let (_, ext) = name.rsplit_once('.')?;
     let ext = ext.to_ascii_lowercase();
-    let kind = kind_for_ext(&ext)?;
+    let kind = formats.kind(&ext)?;
     if is_ignored_file(&name) {
         return None;
     }
