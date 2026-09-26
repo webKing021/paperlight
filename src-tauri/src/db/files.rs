@@ -430,3 +430,45 @@ pub fn record_open(conn: &Connection, id: i64, now: i64) -> AppResult<()> {
     )?;
     Ok(())
 }
+
+/// Everything the details panel shows about one document.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Details {
+    pub file: FileRow,
+    /// The start of the document's text, if it has been read.
+    pub excerpt: Option<String>,
+    /// 0 = waiting to be read, 1 = read, 2 = not readable format / too large, 3 = failed.
+    pub text_status: i64,
+}
+
+pub fn details(conn: &Connection, id: i64) -> AppResult<Option<Details>> {
+    let file = conn
+        .query_row(
+            &format!("SELECT {FILE_COLUMNS} FROM files f WHERE f.id = ?1"),
+            [id],
+            FileRow::from_row,
+        )
+        .optional()?;
+    let Some(mut file) = file else {
+        return Ok(None);
+    };
+    attach_tags(conn, std::slice::from_mut(&mut file))?;
+    let excerpt = conn
+        .query_row(
+            "SELECT substr(body, 1, 1400) FROM content_fts WHERE rowid = ?1",
+            [id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let text_status = conn.query_row(
+        "SELECT content_status FROM files WHERE id = ?1",
+        [id],
+        |r| r.get(0),
+    )?;
+    Ok(Some(Details {
+        file,
+        excerpt,
+        text_status,
+    }))
+}

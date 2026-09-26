@@ -180,3 +180,25 @@ pub fn set_file_tag(
 ) -> AppResult<()> {
     tags::set_file_tag(&state.db.writer(), file_id, tag_id, on)
 }
+
+#[tauri::command]
+pub fn file_details(state: State<'_, AppState>, id: i64) -> AppResult<files::Details> {
+    files::details(&state.db.reader(), id)?
+        .ok_or_else(|| AppError::msg("This document is no longer in the index."))
+}
+
+/// PDFs up to this size can be previewed; larger ones just show their details.
+const MAX_PREVIEW_BYTES: u64 = 30 * 1024 * 1024;
+
+/// Raw bytes of an indexed PDF for the preview panel (by id only, never an arbitrary path).
+#[tauri::command]
+pub fn preview_pdf(state: State<'_, AppState>, id: i64) -> AppResult<tauri::ipc::Response> {
+    let path = existing_path(&state, id)?;
+    if !path.to_ascii_lowercase().ends_with(".pdf") {
+        return Err(AppError::msg("Only PDFs can be previewed."));
+    }
+    if std::fs::metadata(&path)?.len() > MAX_PREVIEW_BYTES {
+        return Err(AppError::msg("This PDF is too large to preview."));
+    }
+    Ok(tauri::ipc::Response::new(std::fs::read(&path)?))
+}

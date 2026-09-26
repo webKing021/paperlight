@@ -63,6 +63,13 @@ export interface FileRow {
   snippet?: string;
 }
 
+export interface FileDetails {
+  file: FileRow;
+  excerpt: string | null;
+  /** 0 = waiting to be read, 1 = read, 2 = not a readable format / too large, 3 = failed. */
+  textStatus: number;
+}
+
 export interface Page {
   total: number;
   offset: number;
@@ -117,6 +124,8 @@ export const api = {
   searchFiles: (query: SearchQuery) => invoke<Page>("search_files", { query }),
   openFile: (id: number) => invoke<void>("open_file", { id }),
   revealFile: (id: number) => invoke<void>("reveal_file", { id }),
+  fileDetails: (id: number) => invoke<FileDetails>("file_details", { id }),
+  previewPdf: (id: number) => invoke<ArrayBuffer>("preview_pdf", { id }),
   addRoot: (path: string) => invoke<Root>("add_root", { path }),
   removeRoot: (id: number) => invoke<void>("remove_root", { id }),
   setRootEnabled: (id: number, enabled: boolean) =>
