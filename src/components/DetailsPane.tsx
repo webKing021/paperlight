@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Copy, FolderOpen, PanelRight, Star } from "lucide-react";
+import { Copy, FolderOpen, Star } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { copyPath, openFile, revealFile, toggleFavourite, toggleTag } from "../lib/actions";
 import { api, type FileDetails } from "../lib/api";
@@ -22,8 +22,6 @@ const TEXT_STATUS: Record<number, string> = {
 
 export function DetailsPane() {
   const selectedId = useUi((s) => s.selectedId);
-  const toggleDetails = useUi((s) => s.toggleDetails);
-  const open = useUi((s) => s.detailsOpen);
   const revision = useIndex((s) => s.revision);
   const tags = useIndex((s) => s.tags);
   const [details, setDetails] = useState<FileDetails | null>(null);
@@ -31,7 +29,7 @@ export function DetailsPane() {
   useEffect(() => setExcluding(false), [selectedId]);
 
   useEffect(() => {
-    if (selectedId === null || !open) {
+    if (selectedId === null) {
       setDetails(null);
       return;
     }
@@ -43,7 +41,7 @@ export function DetailsPane() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId, revision, open]);
+  }, [selectedId, revision]);
 
   const file = details?.file;
   const kind = file ? FILE_KINDS[file.kind] : undefined;
@@ -53,26 +51,11 @@ export function DetailsPane() {
       className="flex h-full shrink-0 flex-col bg-sheet"
       style={{ width: PANE_WIDTH }}
     >
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-line pl-4 pr-2">
-        <span
-          className={clsx(
-            "font-mono text-[10.5px] uppercase tracking-[0.08em] text-pencil transition-opacity duration-150",
-            !open && "opacity-0",
-          )}
-        >
-          Details
-        </span>
-        <button
-          type="button"
-          title={open ? "Collapse details (Ctrl+I)" : "Expand details (Ctrl+I)"}
-          onClick={toggleDetails}
-          className="flex size-7 items-center justify-center rounded-md text-graphite transition-colors hover:bg-hover hover:text-ink"
-        >
-          <PanelRight className="size-4" strokeWidth={1.6} />
-        </button>
+      <div className="flex h-14 shrink-0 items-center border-b border-line px-4">
+        <span className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-pencil">Details</span>
       </div>
 
-      {!open ? null : !file ? (
+      {!file ? (
         <div className="flex flex-1 items-center justify-center px-8 text-center text-[12.5px] text-pencil">
           Select a document to see a preview and its details.
         </div>

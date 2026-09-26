@@ -1,12 +1,15 @@
-import { Monitor, Moon, Search, Sun, X } from "lucide-react";
+import clsx from "clsx";
+import { Monitor, Moon, PanelRight, Search, Sun, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useUi } from "../stores/ui";
 
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
 const THEME_LABEL = { system: "Match Windows", light: "Light", dark: "Dark" } as const;
 
-export function SearchBar() {
+/** `detailsToggle` shows the details-panel button; false where the panel isn't available. */
+export function SearchBar({ detailsToggle }: { detailsToggle: boolean }) {
   const query = useUi((s) => s.query);
+  const detailsOpen = useUi((s) => s.detailsOpen);
   const setQuery = useUi((s) => s.setQuery);
   const theme = useUi((s) => s.theme);
   const cycleTheme = useUi((s) => s.cycleTheme);
@@ -74,6 +77,19 @@ export function SearchBar() {
       >
         <ThemeIcon className="size-4" strokeWidth={1.6} />
       </button>
+      {detailsToggle && (
+        <button
+          type="button"
+          onClick={toggleDetails}
+          title={detailsOpen ? "Hide details (Ctrl+I)" : "Show details (Ctrl+I)"}
+          className={clsx(
+            "flex size-9 items-center justify-center rounded-md transition-colors hover:bg-hover hover:text-ink",
+            detailsOpen ? "text-ink" : "text-graphite",
+          )}
+        >
+          <PanelRight className="size-4" strokeWidth={1.6} />
+        </button>
+      )}
     </header>
   );
 }

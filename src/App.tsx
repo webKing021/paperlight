@@ -159,6 +159,7 @@ export default function App() {
   }, [text, config, view.type, userSort]);
 
   const firstRun = overview !== null && overview.lastScanAt === null && !scanning;
+  const hasDetails = !firstRun && view.type !== "settings";
 
   return (
     <div className="flex h-full flex-col">
@@ -167,7 +168,7 @@ export default function App() {
           <Sidebar />
         </SlidePanel>
         <main className="flex min-w-0 flex-1 flex-col">
-          <SearchBar />
+          <SearchBar detailsToggle={hasDetails} />
           <ScanBanner />
           <section className="min-h-0 flex-1">
             {overview === null ? null : firstRun ? (
@@ -192,12 +193,7 @@ export default function App() {
             ) : null}
           </section>
         </main>
-        <SlidePanel
-          side="right"
-          width={320}
-          rail={44}
-          state={firstRun || view.type === "settings" ? "hidden" : detailsOpen ? "open" : "rail"}
-        >
+        <SlidePanel side="right" width={320} rail={0} state={hasDetails && detailsOpen ? "open" : "hidden"}>
           <DetailsPane />
         </SlidePanel>
       </div>
