@@ -6,25 +6,27 @@ import { SearchBar } from "./components/SearchBar";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { Toasts } from "./components/Toasts";
-import { api, type ListQuery } from "./lib/api";
+import { api, type SortKey, type Tag, type ViewFilter } from "./lib/api";
 import { FILE_KINDS } from "./lib/fileKinds";
 import { useDebounced } from "./lib/useDebounced";
 import { useApplyTheme } from "./lib/useTheme";
 import { useIndex, wireIndexEvents } from "./stores";
-import { useUi, type View } from "./stores/ui";
+import { useUi, type Sort, type View } from "./stores/ui";
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 
 interface ViewConfig {
   title: string;
-  /** Filters shared by browsing and searching; `null` = view not available yet. */
-  filter: Pick<ListQuery, "kind" | "modifiedAfter"> | null;
+  /** Filter shared by browsing and searching; `null` = view not available yet. */
+  filter: ViewFilter | null;
+  /** Fixed sort for views whose order is their point (e.g. recently opened). */
+  sort?: Sort;
   emptyTitle: string;
   emptyHint: string;
 }
 
-function viewConfig(view: View): ViewConfig {
+function viewConfig(view: View, tags: Tag[]): ViewConfig {
   switch (view.type) {
     case "all":
       return {
@@ -51,17 +53,27 @@ function viewConfig(view: View): ViewConfig {
     case "opened":
       return {
         title: "Recently opened",
-        filter: null,
-        emptyTitle: "Recently opened",
-        emptyHint: "Files you open from Paperlight will be listed here. Coming in the next update.",
+        filter: { opened: true },
+        sort: { key: "opened", ascending: false },
+        emptyTitle: "Nothing opened yet",
+        emptyHint: "Documents you open from Paperlight are listed here, most recent first.",
       };
     case "favourites":
       return {
         title: "Favourites",
-        filter: null,
-        emptyTitle: "Favourites",
-        emptyHint: "Star important documents to keep them one click away. Coming soon.",
+        filter: { favourites: true },
+        emptyTitle: "No favourites yet",
+        emptyHint: "Star a document (Ctrl+D) to keep it one click away.",
       };
+    case "tag": {
+      const tag = tags.find((t) => t.id === view.id);
+      return {
+        title: tag?.name ?? "Tag",
+        filter: { tagId: view.id },
+        emptyTitle: `Nothing tagged “${tag?.name ?? ""}” yet`,
+        emptyHint: "Right-click a document (or press Ctrl+T) to add tags.",
+      };
+    }
     case "duplicates":
       return {
         title: "Duplicates",
@@ -79,10 +91,20 @@ export default function App() {
   const overview = useIndex((s) => s.overview);
   const scanning = useIndex((s) => s.scanning);
   const revision = useIndex((s) => s.revision);
+  const tags = useIndex((s) => s.tags);
   const view = useUi((s) => s.view);
+  const userSort = useUi((s) => s.sort);
+  const setSort = useUi((s) => s.setSort);
   const rawQuery = useUi((s) => s.query);
   const text = useDebounced(rawQuery.trim(), 90);
-  const config = useMemo(() => viewConfig(view), [view]);
+  const config = useMemo(() => viewConfig(view, tags), [view, tags]);
+
+  const onSort = (key: SortKey) =>
+    setSort(
+      userSort.key === key
+        ? { key, ascending: !userSort.ascending }
+        : { key, ascending: key === "name" },
+    );
 
   const list = useMemo(() => {
     if (text) {
@@ -93,26 +115,30 @@ export default function App() {
       return {
         fetcher,
         key: JSON.stringify(["search", text, filter]),
-        title: config.filter && view.type !== "all" ? `Matches in ${config.title}` : "Best matches",
+        title: view.type !== "all" && config.filter ? `Matches in ${config.title}` : "Best matches",
         emptyTitle: `No documents match “${text}”`,
         emptyHint: "Try fewer or shorter words. Part of a name or a folder is enough.",
         highlight: text.toLowerCase().split(/\s+/),
         autoSelect: true,
+        sortable: false,
       };
     }
     if (!config.filter) return null;
     const filter = config.filter;
-    const fetcher: Fetcher = (offset, limit) => api.listFiles({ ...filter, offset, limit });
+    const sort = config.sort ?? userSort;
+    const fetcher: Fetcher = (offset, limit) =>
+      api.listFiles({ ...filter, sort: sort.key, ascending: sort.ascending, offset, limit });
     return {
       fetcher,
-      key: JSON.stringify(["list", filter]),
+      key: JSON.stringify(["list", filter, sort]),
       title: config.title,
       emptyTitle: config.emptyTitle,
       emptyHint: config.emptyHint,
       highlight: undefined,
       autoSelect: false,
+      sortable: !config.sort,
     };
-  }, [text, config, view.type]);
+  }, [text, config, view.type, userSort]);
 
   const firstRun = overview !== null && overview.lastScanAt === null && !scanning;
 
@@ -136,6 +162,8 @@ export default function App() {
                 emptyHint={list.emptyHint}
                 highlight={list.highlight}
                 autoSelect={list.autoSelect}
+                sort={list.sortable ? userSort : undefined}
+                onSort={list.sortable ? onSort : undefined}
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-1 text-center">

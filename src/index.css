@@ -33,6 +33,14 @@
   --slides: #b06f24;
   --ok: #5a8a55;
   --danger: #b4493b;
+
+  --tag-brick: #b4493b;
+  --tag-slate: #3d5a87;
+  --tag-moss: #43744b;
+  --tag-ochre: #b06f24;
+  --tag-plum: #7b4f7c;
+  --tag-teal: #3b7773;
+  --tag-graphite: #6f6a60;
   color-scheme: light;
 }
 
@@ -57,6 +65,14 @@
   --slides: #dca25c;
   --ok: #82b48a;
   --danger: #e07a6a;
+
+  --tag-brick: #e07a6a;
+  --tag-slate: #85a2cf;
+  --tag-moss: #82b48a;
+  --tag-ochre: #dca25c;
+  --tag-plum: #c194c2;
+  --tag-teal: #7fbdb8;
+  --tag-graphite: #a39e92;
   color-scheme: dark;
 }
 

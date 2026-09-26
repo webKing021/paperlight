@@ -45,6 +45,12 @@ pub fn run() {
             commands::remove_exclusion,
             commands::start_scan,
             commands::cancel_scan,
+            commands::set_favourite,
+            commands::list_tags,
+            commands::create_tag,
+            commands::update_tag,
+            commands::delete_tag,
+            commands::set_file_tag,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Paperlight");

@@ -1,39 +1,66 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
-import { Copy, ExternalLink, FolderOpen } from "lucide-react";
-import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
-import { copyPath, openFile, revealFile } from "../lib/actions";
-import type { FileRow, Page } from "../lib/api";
+import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, FolderOpen, Star } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  copyPath,
+  openFile,
+  revealFile,
+  tagWithNew,
+  toggleFavourite,
+  toggleTag,
+} from "../lib/actions";
+import type { FileRow, Page, SortKey, Tag } from "../lib/api";
 import { FILE_KINDS } from "../lib/fileKinds";
 import { formatDateTime, formatRelative, formatSize } from "../lib/format";
+import { useIndex } from "../stores";
+import type { Sort } from "../stores/ui";
+import { TagDot } from "./TagDot";
 
 const PAGE_SIZE = 200;
 const ROW_HEIGHT = 50;
-const GRID = "grid-cols-[minmax(0,1fr)_112px_72px_68px]";
+const GRID = "grid-cols-[minmax(0,1fr)_112px_72px_92px]";
 
 export type Fetcher = (offset: number, limit: number) => Promise<Page>;
 
 /**
  * Loads a (possibly huge) result set page by page, only fetching pages that scroll into view.
- * Old pages stay visible until the first page of a reload arrives, so live updates don't flicker.
+ * Old pages stay visible until a reload arrives, so live updates don't flicker.
  */
 function usePagedFiles(fetcher: Fetcher, key: string, revision: number) {
   const [total, setTotal] = useState<number | null>(null);
   const pages = useRef(new Map<number, FileRow[]>());
   const loading = useRef(new Set<number>());
   const generation = useRef(0);
+  const lastKey = useRef(key);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
   const [, rerender] = useReducer((x: number) => x + 1, 0);
 
   useEffect(() => {
     const gen = ++generation.current;
-    fetcherRef.current(0, PAGE_SIZE).then(
-      (page) => {
+    // Same query, new data (edit or live change): reload every page that was on screen so
+    // nothing blanks out. A different query starts from the first page.
+    const sameQuery = lastKey.current === key;
+    lastKey.current = key;
+    const wanted = sameQuery && pages.current.size ? [...pages.current.keys()] : [0];
+    Promise.all(
+      wanted.map((p) =>
+        fetcherRef.current(p * PAGE_SIZE, PAGE_SIZE).then((page) => [p, page] as const),
+      ),
+    ).then(
+      (results) => {
         if (gen !== generation.current) return;
-        pages.current = new Map([[0, page.items]]);
+        pages.current = new Map(results.map(([p, page]) => [p, page.items]));
         loading.current = new Set();
-        setTotal(page.total);
+        setTotal(results[0][1].total);
         rerender();
       },
       () => gen === generation.current && setTotal(0),
@@ -72,6 +99,9 @@ interface FileListProps {
   highlight?: string[];
   /** Select the first row automatically (search results: Enter opens the best match). */
   autoSelect?: boolean;
+  /** Current sort, when the list can be sorted by clicking column headers. */
+  sort?: Sort;
+  onSort?: (key: SortKey) => void;
 }
 
 interface MenuState {
@@ -84,6 +114,7 @@ export function FileList(props: FileListProps) {
   const { fetcher, fetchKey, revision, title, emptyTitle, emptyHint, highlight, autoSelect } =
     props;
   const { total, getRow, ensure } = usePagedFiles(fetcher, fetchKey, revision);
+  const tags = useIndex((s) => s.tags);
   const [selected, setSelected] = useState(-1);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -106,7 +137,19 @@ export function FileList(props: FileListProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchKey]);
 
-  // Keyboard: ↑/↓ PgUp/PgDn move, Enter opens, Ctrl+Enter shows in folder, Ctrl+Shift+C copies.
+  /** Opens the row menu under the selected row (keyboard). */
+  const menuForSelected = useCallback(
+    (row: FileRow) => {
+      const box = scrollRef.current?.getBoundingClientRect();
+      if (!box) return;
+      const top = selected * ROW_HEIGHT - (scrollRef.current?.scrollTop ?? 0);
+      setMenu({ x: box.left + 240, y: box.top + top + ROW_HEIGHT - 6, row });
+    },
+    [selected],
+  );
+
+  // ↑/↓ PgUp/PgDn move · Enter open · Ctrl+Enter show in folder · Ctrl+Shift+C copy path ·
+  // Ctrl+D favourite · Ctrl+T tags
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!total || menu) return;
@@ -128,18 +171,25 @@ export function FileList(props: FileListProps) {
       }
       const row = selected >= 0 ? getRow(selected) : undefined;
       if (!row) return;
+      const key = e.key.toLowerCase();
       if (e.key === "Enter") {
         e.preventDefault();
         if (e.ctrlKey) revealFile(row);
         else openFile(row);
-      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "c") {
+      } else if (e.ctrlKey && e.shiftKey && key === "c") {
         e.preventDefault();
         copyPath(row);
+      } else if (e.ctrlKey && !e.shiftKey && key === "d") {
+        e.preventDefault();
+        toggleFavourite(row);
+      } else if (e.ctrlKey && !e.shiftKey && key === "t") {
+        e.preventDefault();
+        menuForSelected(row);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [total, selected, menu, getRow, virtualizer]);
+  }, [total, selected, menu, getRow, virtualizer, menuForSelected]);
 
   if (total === 0) {
     return (
@@ -150,6 +200,8 @@ export function FileList(props: FileListProps) {
     );
   }
 
+  const tagById = new Map(tags.map((t) => [t.id, t]));
+
   return (
     <div className="flex h-full flex-col">
       <div
@@ -158,14 +210,16 @@ export function FileList(props: FileListProps) {
           GRID,
         )}
       >
-        <span>
+        <HeaderCell sortKey="name" sort={props.sort} onSort={props.onSort}>
           {title}
-          {total !== null && (
-            <span className="ml-2 text-graphite">{total.toLocaleString()}</span>
-          )}
-        </span>
-        <span>Modified</span>
-        <span className="text-right">Size</span>
+          {total !== null && <span className="ml-2 text-graphite">{total.toLocaleString()}</span>}
+        </HeaderCell>
+        <HeaderCell sortKey="modified" sort={props.sort} onSort={props.onSort}>
+          Modified
+        </HeaderCell>
+        <HeaderCell sortKey="size" align="right" sort={props.sort} onSort={props.onSort}>
+          Size
+        </HeaderCell>
         <span />
       </div>
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" onScroll={() => setMenu(null)}>
@@ -181,6 +235,7 @@ export function FileList(props: FileListProps) {
                 {row ? (
                   <Row
                     row={row}
+                    rowTags={row.tags.map((id) => tagById.get(id)).filter((t): t is Tag => !!t)}
                     selected={selected === item.index}
                     highlight={highlight}
                     onSelect={() => setSelected(item.index)}
@@ -197,20 +252,56 @@ export function FileList(props: FileListProps) {
           })}
         </div>
       </div>
-      {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
+      {menu && <ContextMenu menu={menu} tags={tags} onClose={() => setMenu(null)} />}
     </div>
+  );
+}
+
+function HeaderCell({
+  sortKey,
+  align,
+  sort,
+  onSort,
+  children,
+}: {
+  sortKey: SortKey;
+  align?: "right";
+  sort?: Sort;
+  onSort?: (key: SortKey) => void;
+  children: ReactNode;
+}) {
+  const active = sort?.key === sortKey;
+  const Arrow = sort?.ascending ? ArrowUp : ArrowDown;
+  if (!onSort) {
+    return <span className={clsx(align === "right" && "text-right")}>{children}</span>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(sortKey)}
+      title="Sort"
+      className={clsx(
+        "flex items-center gap-1 uppercase tracking-[0.08em] hover:text-ink",
+        align === "right" && "justify-end",
+        active && "text-ink-2",
+      )}
+    >
+      {children}
+      {active && <Arrow className="size-3" strokeWidth={2} />}
+    </button>
   );
 }
 
 interface RowProps {
   row: FileRow;
+  rowTags: Tag[];
   selected: boolean;
   highlight?: string[];
   onSelect: () => void;
   onMenu: (x: number, y: number) => void;
 }
 
-function Row({ row, selected, highlight, onSelect, onMenu }: RowProps) {
+function Row({ row, rowTags, selected, highlight, onSelect, onMenu }: RowProps) {
   const kind = FILE_KINDS[row.kind];
   return (
     <div
@@ -236,8 +327,22 @@ function Row({ row, selected, highlight, onSelect, onMenu }: RowProps) {
           </span>
         </span>
         <div className="min-w-0">
-          <div className="truncate text-[13.5px] font-medium leading-5 text-ink">
-            {mark(row.name, highlight)}
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-[13.5px] font-medium leading-5 text-ink">
+              {mark(row.name, highlight)}
+            </span>
+            {row.isFavourite && (
+              <Star className="size-3 shrink-0 fill-lamp text-lamp" strokeWidth={1.5} />
+            )}
+            {rowTags.slice(0, 3).map((t) => (
+              <span
+                key={t.id}
+                className="flex shrink-0 items-center gap-1 font-mono text-[10px] text-graphite"
+              >
+                <TagDot color={t.color} className="size-[7px]" />
+                {t.name}
+              </span>
+            ))}
           </div>
           <div className="truncate text-[11.5px] leading-4 text-pencil">{mark(row.dir, highlight)}</div>
         </div>
@@ -254,6 +359,15 @@ function Row({ row, selected, highlight, onSelect, onMenu }: RowProps) {
           selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
         )}
       >
+        <IconButton
+          title={row.isFavourite ? "Remove from favourites (Ctrl+D)" : "Add to favourites (Ctrl+D)"}
+          onClick={() => toggleFavourite(row)}
+        >
+          <Star
+            className={clsx("size-[14px]", row.isFavourite && "fill-lamp text-lamp")}
+            strokeWidth={1.6}
+          />
+        </IconButton>
         <IconButton title="Show in folder (Ctrl+Enter)" onClick={() => revealFile(row)}>
           <FolderOpen className="size-[15px]" strokeWidth={1.6} />
         </IconButton>
@@ -290,7 +404,10 @@ function IconButton({
   );
 }
 
-function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }) {
+function ContextMenu({ menu, tags, onClose }: { menu: MenuState; tags: Tag[]; onClose: () => void }) {
+  const [newTag, setNewTag] = useState("");
+  const { row } = menu;
+
   useEffect(() => {
     const close = (e: Event) => {
       if (e instanceof KeyboardEvent && e.key !== "Escape") return;
@@ -306,48 +423,99 @@ function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }
     };
   }, [onClose]);
 
-  const items: { label: string; hint: string; icon: ReactNode; run: () => void }[] = [
-    { label: "Open", hint: "Enter", icon: <ExternalLink className="size-3.5" />, run: () => openFile(menu.row) },
-    {
-      label: "Show in folder",
-      hint: "Ctrl+Enter",
-      icon: <FolderOpen className="size-3.5" />,
-      run: () => revealFile(menu.row),
-    },
-    {
-      label: "Copy path",
-      hint: "Ctrl+Shift+C",
-      icon: <Copy className="size-3.5" />,
-      run: () => copyPath(menu.row),
-    },
-  ];
+  const run = (fn: () => void) => () => {
+    fn();
+    onClose();
+  };
 
   // Keep the menu inside the window.
-  const x = Math.min(menu.x, window.innerWidth - 220);
-  const y = Math.min(menu.y, window.innerHeight - 120);
+  const height = 190 + Math.min(tags.length, 8) * 30;
+  const x = Math.min(menu.x, window.innerWidth - 240);
+  const y = Math.min(menu.y, window.innerHeight - height);
 
   return (
     <div
       className="fixed z-50 w-56 rounded-md border border-line-strong bg-sheet p-1 shadow-[0_10px_30px_-12px_rgba(28,27,24,0.35)]"
-      style={{ left: x, top: y }}
+      style={{ left: x, top: Math.max(8, y) }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {items.map((item) => (
-        <button
-          type="button"
-          key={item.label}
-          onClick={() => {
-            item.run();
+      <MenuItem icon={<ExternalLink className="size-3.5" />} hint="Enter" onClick={run(() => openFile(row))}>
+        Open
+      </MenuItem>
+      <MenuItem icon={<FolderOpen className="size-3.5" />} hint="Ctrl+Enter" onClick={run(() => revealFile(row))}>
+        Show in folder
+      </MenuItem>
+      <MenuItem icon={<Copy className="size-3.5" />} hint="Ctrl+Shift+C" onClick={run(() => copyPath(row))}>
+        Copy path
+      </MenuItem>
+      <MenuItem
+        icon={<Star className={clsx("size-3.5", row.isFavourite && "fill-lamp text-lamp")} />}
+        hint="Ctrl+D"
+        onClick={run(() => toggleFavourite(row))}
+      >
+        {row.isFavourite ? "Remove favourite" : "Add to favourites"}
+      </MenuItem>
+
+      <div className="my-1 border-t border-line" />
+      <div className="px-2.5 pb-1 pt-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-pencil">
+        Tags
+      </div>
+      <div className="max-h-60 overflow-y-auto">
+        {tags.map((tag) => {
+          const on = row.tags.includes(tag.id);
+          return (
+            <MenuItem
+              key={tag.id}
+              icon={<TagDot color={tag.color} />}
+              hint={on ? <Check className="size-3.5 text-ink" /> : undefined}
+              onClick={run(() => toggleTag(row, tag.id))}
+            >
+              <span className="truncate">{tag.name}</span>
+            </MenuItem>
+          );
+        })}
+      </div>
+      <input
+        value={newTag}
+        onChange={(e) => setNewTag(e.target.value)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter" && newTag.trim()) {
+            tagWithNew(row, newTag);
             onClose();
-          }}
-          className="flex w-full items-center gap-2.5 rounded px-2.5 py-1.5 text-left text-[12.5px] text-ink hover:bg-hover"
-        >
-          <span className="text-graphite">{item.icon}</span>
-          {item.label}
-          <span className="ml-auto font-mono text-[10px] text-pencil">{item.hint}</span>
-        </button>
-      ))}
+          }
+          if (e.key === "Escape") onClose();
+        }}
+        autoFocus={tags.length === 0}
+        maxLength={40}
+        placeholder="New tag…"
+        className="mt-0.5 h-7 w-full rounded border border-transparent bg-transparent px-2.5 text-[12.5px] text-ink outline-none placeholder:text-pencil focus:border-line-strong focus:bg-paper"
+      />
     </div>
+  );
+}
+
+function MenuItem({
+  icon,
+  hint,
+  onClick,
+  children,
+}: {
+  icon: ReactNode;
+  hint?: ReactNode;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 rounded px-2.5 py-1.5 text-left text-[12.5px] text-ink hover:bg-hover"
+    >
+      <span className="flex w-3.5 justify-center text-graphite">{icon}</span>
+      <span className="flex min-w-0 flex-1 items-center">{children}</span>
+      {hint && <span className="ml-auto font-mono text-[10px] text-pencil">{hint}</span>}
+    </button>
   );
 }
 

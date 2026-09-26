@@ -4,6 +4,7 @@
 pub mod files;
 pub mod roots;
 mod schema;
+pub mod tags;
 
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
