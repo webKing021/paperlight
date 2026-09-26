@@ -11,6 +11,7 @@ export function StatusBar() {
   const error = useIndex((s) => s.error);
   const summary = useIndex((s) => s.lastSummary);
   const startScan = useIndex((s) => s.startScan);
+  const hotkey = useIndex((s) => s.shell?.hotkey);
 
   // Refresh "updated 2 min ago" when the window regains focus: no timers while idle.
   const [, tick] = useState(0);
@@ -59,13 +60,21 @@ export function StatusBar() {
           · {summary.errors.toLocaleString()} skipped
         </span>
       )}
+      {hotkey && (
+        <span className="ml-auto text-pencil" title="Quick search from any app">
+          {hotkey} from anywhere
+        </span>
+      )}
       {overview?.lastScanAt && (
         <button
           type="button"
           onClick={startScan}
           disabled={scanning}
           title="Rescan now"
-          className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover hover:text-ink disabled:opacity-40"
+          className={clsx(
+            "flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover hover:text-ink disabled:opacity-40",
+            hotkey ? "ml-3" : "ml-auto",
+          )}
         >
           <RefreshCw className={clsx("size-3", scanning && "animate-spin")} />
           Rescan

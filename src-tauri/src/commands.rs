@@ -14,6 +14,7 @@ use crate::indexer;
 use crate::indexer::scanner::ScanMode;
 use crate::indexer::watcher;
 use crate::search::{self, SearchQuery};
+use crate::shell;
 use crate::state::AppState;
 
 #[derive(Serialize)]
@@ -201,4 +202,35 @@ pub fn preview_pdf(state: State<'_, AppState>, id: i64) -> AppResult<tauri::ipc:
         return Err(AppError::msg("This PDF is too large to preview."));
     }
     Ok(tauri::ipc::Response::new(std::fs::read(&path)?))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellInfo {
+    /// The global quick-search hotkey, if one could be registered.
+    pub hotkey: Option<String>,
+    pub autostart: bool,
+}
+
+#[tauri::command]
+pub fn shell_info(app: AppHandle) -> ShellInfo {
+    ShellInfo {
+        hotkey: shell::hotkey(&app),
+        autostart: shell::autostart_enabled(&app),
+    }
+}
+
+#[tauri::command]
+pub fn set_autostart(app: AppHandle, on: bool) -> AppResult<()> {
+    shell::set_autostart(&app, on)
+}
+
+#[tauri::command]
+pub fn hide_quick(app: AppHandle) {
+    shell::hide_quick(&app);
+}
+
+#[tauri::command]
+pub fn show_main(app: AppHandle) {
+    shell::focus_main(&app);
 }

@@ -1,5 +1,13 @@
 import { create } from "zustand";
-import { api, events, type Overview, type ScanProgress, type ScanSummary, type Tag } from "../lib/api";
+import {
+  api,
+  events,
+  type Overview,
+  type ScanProgress,
+  type ScanSummary,
+  type ShellInfo,
+  type Tag,
+} from "../lib/api";
 
 interface IndexState {
   overview: Overview | null;
@@ -12,6 +20,7 @@ interface IndexState {
   /** Bumped whenever the index content changes so file lists reload. */
   revision: number;
   tags: Tag[];
+  shell: ShellInfo | null;
   refresh: () => Promise<void>;
   refreshTags: () => Promise<void>;
   /** Call after changing favourites/tags: reloads lists, counts and tags. */
@@ -29,6 +38,7 @@ export const useIndex = create<IndexState>((set, get) => ({
   error: null,
   revision: 0,
   tags: [],
+  shell: null,
 
   refreshTags: async () => {
     try {
@@ -111,4 +121,5 @@ export function wireIndexEvents() {
   });
   refresh();
   useIndex.getState().refreshTags();
+  api.shellInfo().then((shell) => useIndex.setState({ shell }), () => {});
 }
