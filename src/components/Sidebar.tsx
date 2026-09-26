@@ -7,7 +7,8 @@ import {
   Star,
   type LucideIcon,
 } from "lucide-react";
-import { FILE_KINDS, KIND_ORDER } from "../lib/fileKinds";
+import { FILE_KINDS, KIND_DOT, KIND_ORDER } from "../lib/fileKinds";
+import { useIndex } from "../stores";
 import { sameView, useUi, type View } from "../stores/ui";
 
 interface NavItem {
@@ -23,14 +24,6 @@ const LIBRARY: NavItem[] = [
   { label: "Favourites", icon: Star, view: { type: "favourites" } },
   { label: "Duplicates", icon: Copy, view: { type: "duplicates" } },
 ];
-
-const KIND_DOT: Record<string, string> = {
-  pdf: "bg-red-500",
-  word: "bg-blue-500",
-  excel: "bg-emerald-500",
-  slides: "bg-orange-500",
-  text: "bg-zinc-400",
-};
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -76,6 +69,7 @@ function NavButton({
 export function Sidebar() {
   const view = useUi((s) => s.view);
   const setView = useUi((s) => s.setView);
+  const stats = useIndex((s) => s.overview?.stats);
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-line bg-surface">
@@ -87,7 +81,12 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto px-2 pt-2">
         <Section title="Library">
           {LIBRARY.map(({ label, icon: Icon, view: target }) => (
-            <NavButton key={label} active={sameView(view, target)} onClick={() => setView(target)}>
+            <NavButton
+              key={label}
+              active={sameView(view, target)}
+              onClick={() => setView(target)}
+              count={target.type === "all" ? stats?.total : undefined}
+            >
               <Icon className="size-4" strokeWidth={1.75} />
               {label}
             </NavButton>
@@ -98,7 +97,12 @@ export function Sidebar() {
           {KIND_ORDER.map((kind) => {
             const target: View = { type: "kind", kind };
             return (
-              <NavButton key={kind} active={sameView(view, target)} onClick={() => setView(target)}>
+              <NavButton
+                key={kind}
+                active={sameView(view, target)}
+                onClick={() => setView(target)}
+                count={stats ? (stats.byKind[kind] ?? 0) : undefined}
+              >
                 <span className={clsx("mx-1 size-2 rounded-full", KIND_DOT[kind])} />
                 {FILE_KINDS[kind].label}
               </NavButton>
