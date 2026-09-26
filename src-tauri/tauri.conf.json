@@ -18,7 +18,8 @@
         "height": 780,
         "minWidth": 900,
         "minHeight": 560,
-        "center": true
+        "center": true,
+        "backgroundColor": "#F5F3EE"
       }
     ],
     "security": {
@@ -27,7 +28,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "category": "Productivity",
     "shortDescription": "A spotlight for every document on your PC",
     "longDescription": "Paperlight finds, tracks and opens every PDF, Word, Excel and PowerPoint file on your PC from one fast, minimal window — without moving your files.",

@@ -95,7 +95,7 @@ export default function App() {
         key: JSON.stringify(["search", text, filter]),
         title: config.filter && view.type !== "all" ? `Matches in ${config.title}` : "Best matches",
         emptyTitle: `No documents match “${text}”`,
-        emptyHint: "Try fewer or shorter words — part of a name or folder is enough.",
+        emptyHint: "Try fewer or shorter words. Part of a name or a folder is enough.",
         highlight: text.toLowerCase().split(/\s+/),
         autoSelect: true,
       };
@@ -139,8 +139,8 @@ export default function App() {
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
-                <p className="text-[14px] font-medium">{config.emptyTitle}</p>
-                <p className="max-w-xs text-[12.5px] text-muted">{config.emptyHint}</p>
+                <p className="text-[14px] font-medium text-ink">{config.emptyTitle}</p>
+                <p className="max-w-xs text-[12.5px] text-graphite">{config.emptyHint}</p>
               </div>
             )}
           </section>

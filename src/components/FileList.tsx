@@ -8,8 +8,8 @@ import { FILE_KINDS } from "../lib/fileKinds";
 import { formatDateTime, formatRelative, formatSize } from "../lib/format";
 
 const PAGE_SIZE = 200;
-const ROW_HEIGHT = 52;
-const GRID = "grid-cols-[minmax(0,1fr)_120px_76px_76px]";
+const ROW_HEIGHT = 50;
+const GRID = "grid-cols-[minmax(0,1fr)_112px_72px_68px]";
 
 export type Fetcher = (offset: number, limit: number) => Promise<Page>;
 
@@ -144,8 +144,8 @@ export function FileList(props: FileListProps) {
   if (total === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1 px-8 text-center">
-        <p className="text-[14px] font-medium">{emptyTitle}</p>
-        <p className="max-w-xs text-[12.5px] text-muted">{emptyHint}</p>
+        <p className="text-[14px] font-medium text-ink">{emptyTitle}</p>
+        <p className="max-w-xs text-[12.5px] text-graphite">{emptyHint}</p>
       </div>
     );
   }
@@ -154,16 +154,14 @@ export function FileList(props: FileListProps) {
     <div className="flex h-full flex-col">
       <div
         className={clsx(
-          "grid shrink-0 gap-4 border-b border-line px-5 py-2 text-[11px] font-semibold uppercase tracking-wider text-faint",
+          "grid shrink-0 gap-4 border-b border-line px-5 py-2 font-mono text-[10.5px] uppercase tracking-[0.08em] text-pencil",
           GRID,
         )}
       >
         <span>
           {title}
           {total !== null && (
-            <span className="ml-1.5 font-normal normal-case tracking-normal">
-              · {total.toLocaleString()}
-            </span>
+            <span className="ml-2 text-graphite">{total.toLocaleString()}</span>
           )}
         </span>
         <span>Modified</span>
@@ -177,7 +175,7 @@ export function FileList(props: FileListProps) {
             return (
               <div
                 key={item.key}
-                className="absolute inset-x-0 px-2"
+                className="absolute inset-x-0"
                 style={{ height: item.size, transform: `translateY(${item.start}px)` }}
               >
                 {row ? (
@@ -192,7 +190,7 @@ export function FileList(props: FileListProps) {
                     }}
                   />
                 ) : (
-                  <div className="mx-3 my-3 h-6 animate-pulse rounded bg-surface-2" />
+                  <div className="mx-5 my-4 h-4 w-1/3 rounded-sm bg-paper-2" />
                 )}
               </div>
             );
@@ -224,29 +222,32 @@ function Row({ row, selected, highlight, onSelect, onMenu }: RowProps) {
       }}
       title={row.path}
       className={clsx(
-        "group grid h-full cursor-default items-center gap-4 rounded-lg px-3",
+        "group relative grid h-full cursor-default items-center gap-4 border-b border-line/60 px-5",
         GRID,
-        selected ? "bg-accent-soft" : "hover:bg-hover",
+        selected ? "bg-lamp-wash" : "hover:bg-paper-2",
       )}
     >
+      {selected && <span className="absolute inset-y-0 left-0 w-[3px] bg-lamp" />}
       <div className="flex min-w-0 items-center gap-3">
-        <span
-          className={clsx(
-            "flex h-7 w-10 shrink-0 items-center justify-center rounded-md text-[10px] font-bold uppercase",
-            kind?.chip,
-          )}
-        >
-          {row.ext.slice(0, 4)}
+        <span className="flex w-11 shrink-0 items-center gap-1.5">
+          <span className={clsx("h-4 w-[3px] rounded-full", kind?.swatch)} />
+          <span className="font-mono text-[10.5px] uppercase text-graphite">
+            {row.ext.slice(0, 4)}
+          </span>
         </span>
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-medium">{mark(row.name, highlight)}</div>
-          <div className="truncate text-[11.5px] text-faint">{mark(row.dir, highlight)}</div>
+          <div className="truncate text-[13.5px] font-medium leading-5 text-ink">
+            {mark(row.name, highlight)}
+          </div>
+          <div className="truncate text-[11.5px] leading-4 text-pencil">{mark(row.dir, highlight)}</div>
         </div>
       </div>
-      <span className="text-[12px] text-muted" title={formatDateTime(row.modifiedAt)}>
+      <span className="text-[12px] text-graphite" title={formatDateTime(row.modifiedAt)}>
         {formatRelative(row.modifiedAt)}
       </span>
-      <span className="text-right text-[12px] tabular-nums text-muted">{formatSize(row.size)}</span>
+      <span className="text-right font-mono text-[11.5px] tabular-nums text-graphite">
+        {formatSize(row.size)}
+      </span>
       <div
         className={clsx(
           "flex justify-end gap-0.5",
@@ -254,10 +255,10 @@ function Row({ row, selected, highlight, onSelect, onMenu }: RowProps) {
         )}
       >
         <IconButton title="Show in folder (Ctrl+Enter)" onClick={() => revealFile(row)}>
-          <FolderOpen className="size-3.5" />
+          <FolderOpen className="size-[15px]" strokeWidth={1.6} />
         </IconButton>
         <IconButton title="Copy path (Ctrl+Shift+C)" onClick={() => copyPath(row)}>
-          <Copy className="size-3.5" />
+          <Copy className="size-[14px]" strokeWidth={1.6} />
         </IconButton>
       </div>
     </div>
@@ -282,7 +283,7 @@ function IconButton({
         onClick();
       }}
       onDoubleClick={(e) => e.stopPropagation()}
-      className="flex size-7 items-center justify-center rounded-md text-muted hover:bg-surface hover:text-fg"
+      className="flex size-7 items-center justify-center rounded text-graphite hover:bg-sheet hover:text-ink"
     >
       {children}
     </button>
@@ -327,7 +328,7 @@ function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }
 
   return (
     <div
-      className="fixed z-50 w-52 rounded-lg border border-line bg-surface p-1 shadow-xl"
+      className="fixed z-50 w-56 rounded-md border border-line-strong bg-sheet p-1 shadow-[0_10px_30px_-12px_rgba(28,27,24,0.35)]"
       style={{ left: x, top: y }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -339,11 +340,11 @@ function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }
             item.run();
             onClose();
           }}
-          className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12.5px] hover:bg-hover"
+          className="flex w-full items-center gap-2.5 rounded px-2.5 py-1.5 text-left text-[12.5px] text-ink hover:bg-hover"
         >
-          <span className="text-muted">{item.icon}</span>
+          <span className="text-graphite">{item.icon}</span>
           {item.label}
-          <span className="ml-auto text-[10.5px] text-faint">{item.hint}</span>
+          <span className="ml-auto font-mono text-[10px] text-pencil">{item.hint}</span>
         </button>
       ))}
     </div>
@@ -374,7 +375,7 @@ function mark(text: string, terms?: string[]): ReactNode {
     const s = Math.max(start, pos);
     if (s > pos) out.push(text.slice(pos, s));
     out.push(
-      <mark key={s} className="rounded-sm bg-amber-300/50 text-inherit dark:bg-amber-400/25">
+      <mark key={s} className="rounded-[2px] bg-lamp/35 text-inherit">
         {text.slice(s, end)}
       </mark>,
     );
