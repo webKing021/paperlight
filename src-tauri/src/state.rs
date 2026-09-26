@@ -1,4 +1,5 @@
 use std::sync::atomic::AtomicBool;
+use std::sync::mpsc::Sender;
 use std::sync::Mutex;
 
 use crate::db::Db;
@@ -9,6 +10,8 @@ pub struct AppState {
     pub scanning: AtomicBool,
     pub cancel: AtomicBool,
     pub watch: Mutex<Option<Watch>>,
+    /// Wakes the background text reader.
+    pub content_wake: Mutex<Option<Sender<()>>>,
 }
 
 impl AppState {
@@ -18,6 +21,7 @@ impl AppState {
             scanning: AtomicBool::new(false),
             cancel: AtomicBool::new(false),
             watch: Mutex::new(None),
+            content_wake: Mutex::new(None),
         }
     }
 }

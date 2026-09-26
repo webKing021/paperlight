@@ -1,4 +1,5 @@
 mod commands;
+mod content;
 mod db;
 mod error;
 mod indexer;
@@ -20,6 +21,11 @@ pub fn run() {
             let db = Db::open(&db_path)?;
             indexer::seed_defaults(&db)?;
             app.manage(AppState::new(db));
+            let reader = content::start(app.handle())?;
+            *app.state::<AppState>()
+                .content_wake
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = Some(reader);
             indexer::sync_on_launch_if_stale(app.handle())?;
             let indexed =
                 db::roots::get_setting(&app.state::<AppState>().db.reader(), "last_scan_at")?
