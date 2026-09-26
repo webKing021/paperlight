@@ -1,89 +1,91 @@
 @import "tailwindcss";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
-@import "@fontsource/ibm-plex-mono/400.css";
-@import "@fontsource/ibm-plex-mono/500.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Paperlight palette — a reading lamp over paper.
- * Warm paper neutrals, ink for text and primary actions, and a single accent ("lamp") used
- * only for the mark, selection and highlights — never for text.
+ * Paperlight palette: quiet neutral surfaces in the Windows 11 manner, text in ink, and one
+ * brand colour ("lamp" amber) kept for the mark, the selected-item pill and search highlights.
+ * File types use the colours people already know from Office and Acrobat, only in file icons.
  */
 :root {
-  --paper: #f5f3ee;
-  --paper-2: #efece5;
-  --sheet: #fbfaf7;
-  --hover: #e9e5dc;
-  --line: #e0dbd0;
-  --line-strong: #cdc7ba;
-  --ink: #1c1b18;
-  --ink-2: #4a4740;
-  --graphite: #6f6a60;
-  --pencil: #9d978b;
-  --lamp: #e3a23b;
-  --lamp-wash: #f4e6c8;
-  --on-ink: #f5f3ee;
+  --paper: #ffffff;
+  --paper-2: #f6f6f8;
+  --sheet: #ffffff;
+  --hover: #efeff2;
+  --selected: #e8e8ed;
+  --line: #e7e7eb;
+  --line-strong: #d3d3d9;
+  --ink: #18181b;
+  --ink-2: #3c3c43;
+  --graphite: #62626a;
+  --pencil: #95959d;
+  --lamp: #e09c26;
+  --lamp-wash: #fcecc8;
+  --on-ink: #ffffff;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -8px rgb(0 0 0 / 0.14);
 
-  --pdf: #b4493b;
-  --word: #3d5a87;
-  --excel: #43744b;
-  --slides: #b06f24;
-  --ok: #5a8a55;
-  --danger: #b4493b;
+  --pdf: #d03b2f;
+  --word: #2b5fc0;
+  --excel: #1b7a46;
+  --slides: #cf5b26;
+  --ok: #2f9a58;
+  --danger: #d03b2f;
 
-  --tag-brick: #b4493b;
-  --tag-slate: #3d5a87;
-  --tag-moss: #43744b;
-  --tag-ochre: #b06f24;
-  --tag-plum: #7b4f7c;
-  --tag-teal: #3b7773;
-  --tag-graphite: #6f6a60;
+  --tag-brick: #d03b2f;
+  --tag-slate: #2b5fc0;
+  --tag-moss: #1b7a46;
+  --tag-ochre: #c7811a;
+  --tag-plum: #8a4f9e;
+  --tag-teal: #1d8580;
+  --tag-graphite: #62626a;
   color-scheme: light;
 }
 
 .dark {
-  --paper: #141311;
-  --paper-2: #1a1917;
-  --sheet: #1e1d1a;
-  --hover: #292724;
-  --line: #2e2c28;
-  --line-strong: #3d3a35;
-  --ink: #ece8df;
-  --ink-2: #c9c4b8;
-  --graphite: #a39e92;
-  --pencil: #6f6b62;
-  --lamp: #e8ae4b;
-  --lamp-wash: #3a2f1c;
-  --on-ink: #141311;
+  --paper: #1b1b1e;
+  --paper-2: #151517;
+  --sheet: #222226;
+  --hover: #29292e;
+  --selected: #313137;
+  --line: #2c2c31;
+  --line-strong: #3b3b42;
+  --ink: #ededf0;
+  --ink-2: #c8c8ce;
+  --graphite: #9c9ca4;
+  --pencil: #6d6d75;
+  --lamp: #eab04c;
+  --lamp-wash: #4a3915;
+  --on-ink: #18181b;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -8px rgb(0 0 0 / 0.55);
 
-  --pdf: #e07a6a;
-  --word: #85a2cf;
-  --excel: #82b48a;
-  --slides: #dca25c;
-  --ok: #82b48a;
-  --danger: #e07a6a;
+  --pdf: #f07466;
+  --word: #7ea6f2;
+  --excel: #5cc08a;
+  --slides: #f0935f;
+  --ok: #5cc08a;
+  --danger: #f07466;
 
-  --tag-brick: #e07a6a;
-  --tag-slate: #85a2cf;
-  --tag-moss: #82b48a;
-  --tag-ochre: #dca25c;
-  --tag-plum: #c194c2;
-  --tag-teal: #7fbdb8;
-  --tag-graphite: #a39e92;
+  --tag-brick: #f07466;
+  --tag-slate: #7ea6f2;
+  --tag-moss: #5cc08a;
+  --tag-ochre: #e5b155;
+  --tag-plum: #c697d8;
+  --tag-teal: #5cc2bb;
+  --tag-graphite: #9c9ca4;
   color-scheme: dark;
 }
 
 @theme inline {
-  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+  /* Windows' own UI typeface: native, crisp at small sizes, nothing to download. */
+  --font-sans: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, monospace;
 
   --color-paper: var(--paper);
   --color-paper-2: var(--paper-2);
   --color-sheet: var(--sheet);
   --color-hover: var(--hover);
+  --color-selected: var(--selected);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-ink: var(--ink);
@@ -99,6 +101,9 @@
   --color-slides: var(--slides);
   --color-ok: var(--ok);
   --color-danger: var(--danger);
+
+  --shadow-pop: var(--shadow);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes runner {
@@ -107,6 +112,23 @@
   }
   100% {
     transform: translateX(400%);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
   }
 }
 
@@ -125,7 +147,6 @@
     font-size: 13.5px;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
-    font-feature-settings: "tnum" 0;
     user-select: none;
     overflow: hidden;
   }
@@ -140,21 +161,37 @@
   }
 
   :focus-visible {
-    outline: 1.5px solid var(--ink);
+    outline: 2px solid var(--ink);
     outline-offset: 1px;
   }
 
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
   }
   ::-webkit-scrollbar-thumb {
     background: var(--line-strong);
     border-radius: 999px;
-    border: 3px solid transparent;
+    border: 4px solid transparent;
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
     background-color: var(--pencil);
+  }
+}
+
+@layer utilities {
+  /* Page content entering (view switches, onboarding steps). */
+  .animate-rise {
+    animation: rise 320ms var(--ease-out-soft) both;
+  }
+  .animate-fade {
+    animation: fade 200ms ease-out both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-rise,
+    .animate-fade {
+      animation: none;
+    }
   }
 }

@@ -1,8 +1,9 @@
-import { RefreshCw } from "lucide-react";
+import { RotateCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api, events, type DupGroup, type DupProgress } from "../lib/api";
 import { formatSize } from "../lib/format";
-import { DocRow, SectionLabel } from "./DocRow";
+import { DocRow, PageHeader, SectionLabel } from "./DocRow";
+import { EmptyState } from "./FileList";
 
 /** Rendering thousands of groups helps nobody; the biggest ones matter most. */
 const MAX_GROUPS = 300;
@@ -43,59 +44,55 @@ export default function DuplicatesView() {
   const extra = groups?.reduce((sum, g) => sum + g.size * (g.files.length - 1), 0) ?? 0;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex shrink-0 items-center justify-between border-b border-line px-5 py-2 font-mono text-[10.5px] uppercase tracking-[0.08em] text-pencil">
-        <span>
-          Duplicates
-          {groups && <span className="ml-2 text-graphite">{sets.toLocaleString()}</span>}
-        </span>
-        <button
-          type="button"
-          onClick={check}
-          disabled={running}
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 uppercase tracking-[0.08em] hover:bg-hover hover:text-ink disabled:opacity-40"
-        >
-          <RefreshCw className={running ? "size-3 animate-spin" : "size-3"} />
-          Check again
-        </button>
-      </div>
+    <div className="flex h-full flex-col animate-fade">
+      <PageHeader
+        title="Duplicates"
+        summary={
+          groups && sets > 0
+            ? `${sets === 1 ? "1 set" : `${sets.toLocaleString()} sets`} of identical documents · ${formatSize(extra)} in extra copies`
+            : "Documents with exactly the same contents, wherever they are."
+        }
+        action={
+          <button
+            type="button"
+            onClick={check}
+            disabled={running}
+            className="mb-0.5 flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-line-strong px-3 text-[12.5px] font-medium text-ink-2 hover:bg-hover hover:text-ink disabled:opacity-50"
+          >
+            <RotateCw className={running ? "size-3.5 animate-spin" : "size-3.5"} strokeWidth={2} />
+            {running ? "Checking…" : "Check again"}
+          </button>
+        }
+      />
 
       {running && progress && progress.total > 0 && <Progress progress={progress} />}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {error ? (
-          <Empty title="Couldn't check for duplicates" hint={error} />
+          <EmptyState title="Couldn't check for duplicates" hint={error} />
         ) : groups === null ? (
-          <Empty title="Looking for identical documents…" hint="" />
+          <EmptyState title="Looking for identical documents…" hint="" />
         ) : sets === 0 ? (
-          <Empty
+          <EmptyState
             title="No duplicates"
             hint="Every indexed document is one of a kind. Paperlight compares exact contents, not names."
           />
         ) : (
           <>
-            <div className="px-5 pt-5">
-              <p className="text-[14px] font-medium text-ink">
-                {sets === 1 ? "1 set" : `${sets.toLocaleString()} sets`} of identical documents ·{" "}
-                {formatSize(extra)} in extra copies
-              </p>
-              <p className="mt-1 max-w-xl text-[12.5px] leading-relaxed text-graphite">
-                Same contents, byte for byte. Paperlight never deletes anything: open a copy or
-                show it in its folder to decide what to keep.
-              </p>
-            </div>
+            <p className="mx-5 mt-3 max-w-2xl rounded-md bg-paper-2 px-3 py-2 text-[12.5px] leading-relaxed text-graphite">
+              Same contents, byte for byte. Paperlight never deletes anything: open a copy or show
+              it in its folder to decide what to keep.
+            </p>
             {groups.slice(0, MAX_GROUPS).map((g) => (
               <section key={`${g.size}-${g.files[0].id}`}>
-                <SectionLabel>
-                  {g.files.length} copies · {formatSize(g.size)} each
-                </SectionLabel>
-                <GroupRows group={g} />
+                <SectionLabel right={`${formatSize(g.size)} each`}>{g.files.length} copies</SectionLabel>
+                <div className="pt-1">
+                  <GroupRows group={g} />
+                </div>
               </section>
             ))}
             {sets > MAX_GROUPS && (
-              <p className="px-5 py-4 text-[12px] text-pencil">
-                Showing the {MAX_GROUPS} largest sets.
-              </p>
+              <p className="px-5 py-4 text-[12px] text-pencil">Showing the {MAX_GROUPS} largest sets.</p>
             )}
             <div className="h-6" />
           </>
@@ -130,25 +127,16 @@ function GroupRows({ group }: { group: DupGroup }) {
 function Progress({ progress }: { progress: DupProgress }) {
   const share = Math.min(1, progress.done / progress.total);
   return (
-    <div className="relative shrink-0 border-b border-line bg-sheet px-5 py-2.5">
-      <div className="flex items-baseline gap-3">
-        <span className="text-[13px] font-medium text-ink">Comparing documents that share a size</span>
-        <span className="font-mono text-[11px] tabular-nums text-graphite">
+    <div className="mx-5 mt-3 shrink-0">
+      <div className="flex items-baseline justify-between text-[12.5px]">
+        <span className="text-graphite">Comparing documents that share a size</span>
+        <span className="tabular-nums text-pencil">
           {progress.done.toLocaleString()} / {progress.total.toLocaleString()}
         </span>
       </div>
-      <div className="absolute inset-x-0 bottom-0 h-[2px] bg-line">
-        <div className="h-full bg-lamp transition-[width]" style={{ width: `${share * 100}%` }} />
+      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-paper-2">
+        <div className="h-full rounded-full bg-ink transition-[width]" style={{ width: `${share * 100}%` }} />
       </div>
-    </div>
-  );
-}
-
-function Empty({ title, hint }: { title: string; hint: string }) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 px-8 text-center">
-      <p className="text-[14px] font-medium text-ink">{title}</p>
-      {hint && <p className="max-w-sm text-[12.5px] text-graphite">{hint}</p>}
     </div>
   );
 }

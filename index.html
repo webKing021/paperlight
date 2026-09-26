@@ -5,8 +5,22 @@
     <link rel="icon" type="image/svg+xml" href="/paperlight.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Paperlight</title>
+    <script src="/boot.js"></script>
+    <link rel="stylesheet" href="/splash.css" />
   </head>
   <body>
+    <div id="splash" aria-hidden="true">
+      <div class="sp-inner">
+        <svg class="sp-mark" viewBox="0 0 24 24">
+          <rect class="sp-stem" x="4" y="3" width="3.4" height="18" rx="0.4" />
+          <path class="sp-bowl" d="M9 3a7 7 0 0 1 0 14z" />
+        </svg>
+        <div class="sp-word">Paperlight</div>
+        <div class="sp-tag">Every document on this PC</div>
+        <div class="sp-track"></div>
+      </div>
+    </div>
+    <script src="/ready.js"></script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

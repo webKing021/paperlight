@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { SortKey } from "../lib/api";
+import { api, type SortKey } from "../lib/api";
 import type { FileKind } from "../lib/fileKinds";
 
 export type ThemeMode = "system" | "light" | "dark";
@@ -48,6 +48,9 @@ interface UiState {
   /** Bucket (document type) chosen on the overview. */
   bucket: FileKind;
   setBucket: (bucket: FileKind) => void;
+  /** Showing the first-run screens instead of the app. */
+  onboarding: boolean;
+  setOnboarding: (on: boolean) => void;
   toasts: Toast[];
   toast: (text: string, tone?: Toast["tone"]) => void;
   dismissToast: (id: number) => void;
@@ -99,6 +102,8 @@ export const useUi = create<UiState>((set, get) => ({
       // ignore
     }
     set({ theme });
+    // The Rust side themes the title bar and the window background to match.
+    api.setTheme(theme).catch(() => {});
   },
   cycleTheme: () => {
     const order: ThemeMode[] = ["system", "light", "dark"];
@@ -123,6 +128,8 @@ export const useUi = create<UiState>((set, get) => ({
     saveFlag(SIDEBAR_KEY, sidebarOpen);
     set({ sidebarOpen });
   },
+  onboarding: false,
+  setOnboarding: (onboarding) => set({ onboarding }),
   toasts: [],
   toast: (text, tone = "info") => {
     const id = ++toastId;

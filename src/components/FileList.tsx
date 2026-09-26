@@ -1,12 +1,13 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { observeElementRect, useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
 import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
   Check,
-  Copy,
+  ClipboardCopy,
   ExternalLink,
+  FileSearch,
   FolderOpen,
   FolderX,
   Star,
@@ -28,18 +29,31 @@ import {
   toggleTag,
 } from "../lib/actions";
 import type { FileRow, Page, SortKey, Tag } from "../lib/api";
-import { FILE_KINDS } from "../lib/fileKinds";
 import { formatDateTime, formatRelative, formatSize } from "../lib/format";
 import { useIndex } from "../stores";
 import { useUi, type Sort } from "../stores/ui";
+import { FileIcon } from "./FileIcon";
 import { FolderChooser } from "./FolderChooser";
 import { TagDot } from "./TagDot";
 
 const PAGE_SIZE = 200;
 const ROW_HEIGHT = 50;
 /** Search results have room for a line of matching text. */
-const SEARCH_ROW_HEIGHT = 68;
-const GRID = "grid-cols-[minmax(0,1fr)_112px_72px_92px]";
+const SEARCH_ROW_HEIGHT = 70;
+const GRID = "grid-cols-[minmax(0,1fr)_120px_72px_96px]";
+
+/**
+ * The list only cares about its height. Ignoring width changes keeps it from re-rendering on
+ * every frame while a side panel slides open or closed.
+ */
+const observeHeight: typeof observeElementRect = (instance, cb) => {
+  let height = -1;
+  return observeElementRect(instance, (rect) => {
+    if (rect.height === height) return;
+    height = rect.height;
+    cb(rect);
+  });
+};
 
 export type Fetcher = (offset: number, limit: number) => Promise<Page>;
 
@@ -115,6 +129,8 @@ interface FileListProps {
   /** Current sort, when the list can be sorted by clicking column headers. */
   sort?: Sort;
   onSort?: (key: SortKey) => void;
+  /** Shown at the right of the title (e.g. a search box); stays visible when the list is empty. */
+  toolbar?: ReactNode;
 }
 
 interface MenuState {
@@ -137,6 +153,7 @@ export function FileList(props: FileListProps) {
     count: total ?? 0,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
+    observeElementRect: observeHeight,
     overscan: 12,
   });
   const items = virtualizer.getVirtualItems();
@@ -211,11 +228,26 @@ export function FileList(props: FileListProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [total, selected, menu, getRow, virtualizer, menuForSelected]);
 
+  const header = (
+    <div className="flex min-h-[52px] shrink-0 items-center gap-2.5 px-5 pb-1.5 pt-3">
+      <h2 className="truncate font-display text-[17px] font-semibold tracking-[-0.01em] text-ink">{title}</h2>
+      {total !== null && (
+        <span className="shrink-0 pt-0.5 text-[12.5px] tabular-nums text-pencil">
+          {total.toLocaleString()} {total === 1 ? "document" : "documents"}
+        </span>
+      )}
+      {props.toolbar && <div className="ml-auto shrink-0">{props.toolbar}</div>}
+    </div>
+  );
+
   if (total === 0) {
+    if (!props.toolbar) return <EmptyState title={emptyTitle} hint={emptyHint} />;
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-1 px-8 text-center">
-        <p className="text-[14px] font-medium text-ink">{emptyTitle}</p>
-        <p className="max-w-xs text-[12.5px] text-graphite">{emptyHint}</p>
+      <div className="flex h-full flex-col">
+        {header}
+        <div className="min-h-0 flex-1 border-t border-line">
+          <EmptyState title={emptyTitle} hint={emptyHint} />
+        </div>
       </div>
     );
   }
@@ -224,15 +256,10 @@ export function FileList(props: FileListProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <div
-        className={clsx(
-          "grid shrink-0 gap-4 border-b border-line px-5 py-2 font-mono text-[10.5px] uppercase tracking-[0.08em] text-pencil",
-          GRID,
-        )}
-      >
+      {header}
+      <div className={clsx("mx-2 grid h-8 shrink-0 items-center gap-4 border-b border-line px-3", GRID)}>
         <HeaderCell sortKey="name" sort={props.sort} onSort={props.onSort}>
-          {title}
-          {total !== null && <span className="ml-2 text-graphite">{total.toLocaleString()}</span>}
+          Name
         </HeaderCell>
         <HeaderCell sortKey="modified" sort={props.sort} onSort={props.onSort}>
           Modified
@@ -242,14 +269,14 @@ export function FileList(props: FileListProps) {
         </HeaderCell>
         <span />
       </div>
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" onScroll={() => setMenu(null)}>
-        <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto pt-1" onScroll={() => setMenu(null)}>
+        <div className="relative w-full" style={{ height: virtualizer.getTotalSize() + 8 }}>
           {items.map((item) => {
             const row = getRow(item.index);
             return (
               <div
                 key={item.key}
-                className="absolute inset-x-0"
+                className="absolute inset-x-0 px-2"
                 style={{ height: item.size, transform: `translateY(${item.start}px)` }}
               >
                 {row ? (
@@ -265,7 +292,7 @@ export function FileList(props: FileListProps) {
                     }}
                   />
                 ) : (
-                  <div className="mx-5 my-4 h-4 w-1/3 rounded-sm bg-paper-2" />
+                  <Placeholder />
                 )}
               </div>
             );
@@ -273,6 +300,31 @@ export function FileList(props: FileListProps) {
         </div>
       </div>
       {menu && <ContextMenu menu={menu} tags={tags} onClose={() => setMenu(null)} />}
+    </div>
+  );
+}
+
+/** Shown while a page of rows is on its way. */
+function Placeholder() {
+  return (
+    <div className="flex h-full items-center gap-3 px-3">
+      <span className="h-[30px] w-[26px] rounded-[4px] bg-paper-2" />
+      <span className="flex flex-col gap-1.5">
+        <span className="h-3 w-56 rounded bg-paper-2" />
+        <span className="h-2.5 w-36 rounded bg-paper-2" />
+      </span>
+    </div>
+  );
+}
+
+export function EmptyState({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-8 text-center animate-fade">
+      <span className="mb-4 flex size-12 items-center justify-center rounded-full bg-paper-2 text-pencil">
+        <FileSearch className="size-[22px]" strokeWidth={1.6} />
+      </span>
+      <p className="text-[14.5px] font-semibold text-ink">{title}</p>
+      {hint && <p className="mt-1 max-w-sm text-[13px] leading-relaxed text-graphite">{hint}</p>}
     </div>
   );
 }
@@ -292,22 +344,24 @@ function HeaderCell({
 }) {
   const active = sort?.key === sortKey;
   const Arrow = sort?.ascending ? ArrowUp : ArrowDown;
+  const base = "text-[12px] font-medium text-pencil";
   if (!onSort) {
-    return <span className={clsx(align === "right" && "text-right")}>{children}</span>;
+    return <span className={clsx(base, align === "right" && "text-right")}>{children}</span>;
   }
   return (
     <button
       type="button"
       onClick={() => onSort(sortKey)}
-      title="Sort"
+      title={`Sort by ${String(children).toLowerCase()}`}
       className={clsx(
-        "flex items-center gap-1 uppercase tracking-[0.08em] hover:text-ink",
+        base,
+        "flex items-center gap-1 hover:text-ink",
         align === "right" && "justify-end",
         active && "text-ink-2",
       )}
     >
       {children}
-      {active && <Arrow className="size-3" strokeWidth={2} />}
+      {active && <Arrow className="size-3" strokeWidth={2.2} />}
     </button>
   );
 }
@@ -322,7 +376,6 @@ interface RowProps {
 }
 
 function Row({ row, rowTags, selected, highlight, onSelect, onMenu }: RowProps) {
-  const kind = FILE_KINDS[row.kind];
   return (
     <div
       onClick={onSelect}
@@ -333,19 +386,13 @@ function Row({ row, rowTags, selected, highlight, onSelect, onMenu }: RowProps) 
       }}
       title={row.path}
       className={clsx(
-        "group relative grid h-full cursor-default items-center gap-4 border-b border-line/60 px-5",
+        "group grid h-full cursor-default items-center gap-4 rounded-md px-3",
         GRID,
-        selected ? "bg-lamp-wash" : "hover:bg-paper-2",
+        selected ? "bg-selected" : "hover:bg-hover/70",
       )}
     >
-      {selected && <span className="absolute inset-y-0 left-0 w-[3px] bg-lamp" />}
       <div className="flex min-w-0 items-center gap-3">
-        <span className="flex w-11 shrink-0 items-center gap-1.5">
-          <span className={clsx("h-4 w-[3px] rounded-full", kind?.swatch)} />
-          <span className="font-mono text-[10.5px] uppercase text-graphite">
-            {row.ext.slice(0, 4)}
-          </span>
-        </span>
+        <FileIcon kind={row.kind} ext={row.ext} />
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate text-[13.5px] font-medium leading-5 text-ink">
@@ -357,28 +404,26 @@ function Row({ row, rowTags, selected, highlight, onSelect, onMenu }: RowProps) 
             {rowTags.slice(0, 3).map((t) => (
               <span
                 key={t.id}
-                className="flex shrink-0 items-center gap-1 font-mono text-[10px] text-graphite"
+                className="flex shrink-0 items-center gap-1 rounded-full border border-line px-1.5 text-[11px] leading-[18px] text-graphite"
               >
-                <TagDot color={t.color} className="size-[7px]" />
+                <TagDot color={t.color} className="size-1.5" />
                 {t.name}
               </span>
             ))}
           </div>
-          <div className="truncate text-[11.5px] leading-4 text-pencil">{mark(row.dir, highlight)}</div>
+          <div className="truncate text-[12px] leading-4 text-pencil">{mark(row.dir, highlight)}</div>
           {row.snippet && (
-            <div className="mt-1 truncate text-[12px] leading-4 text-graphite">{snippet(row.snippet)}</div>
+            <div className="mt-1 truncate text-[12.5px] leading-4 text-graphite">{snippet(row.snippet)}</div>
           )}
         </div>
       </div>
-      <span className="text-[12px] text-graphite" title={formatDateTime(row.modifiedAt)}>
+      <span className="truncate text-[12.5px] text-graphite" title={formatDateTime(row.modifiedAt)}>
         {formatRelative(row.modifiedAt)}
       </span>
-      <span className="text-right font-mono text-[11.5px] tabular-nums text-graphite">
-        {formatSize(row.size)}
-      </span>
+      <span className="text-right text-[12.5px] tabular-nums text-graphite">{formatSize(row.size)}</span>
       <div
         className={clsx(
-          "flex justify-end gap-0.5",
+          "flex justify-end gap-0.5 transition-opacity duration-100",
           selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
         )}
       >
@@ -387,15 +432,15 @@ function Row({ row, rowTags, selected, highlight, onSelect, onMenu }: RowProps) 
           onClick={() => toggleFavourite(row)}
         >
           <Star
-            className={clsx("size-[14px]", row.isFavourite && "fill-lamp text-lamp")}
-            strokeWidth={1.6}
+            className={clsx("size-[15px]", row.isFavourite && "fill-lamp text-lamp")}
+            strokeWidth={1.7}
           />
         </IconButton>
         <IconButton title="Show in folder (Ctrl+Enter)" onClick={() => revealFile(row)}>
-          <FolderOpen className="size-[15px]" strokeWidth={1.6} />
+          <FolderOpen className="size-[15px]" strokeWidth={1.7} />
         </IconButton>
         <IconButton title="Copy path (Ctrl+Shift+C)" onClick={() => copyPath(row)}>
-          <Copy className="size-[14px]" strokeWidth={1.6} />
+          <ClipboardCopy className="size-[15px]" strokeWidth={1.7} />
         </IconButton>
       </div>
     </div>
@@ -420,7 +465,7 @@ function IconButton({
         onClick();
       }}
       onDoubleClick={(e) => e.stopPropagation()}
-      className="flex size-7 items-center justify-center rounded text-graphite hover:bg-sheet hover:text-ink"
+      className="flex size-7 items-center justify-center rounded-md text-graphite hover:bg-paper hover:text-ink"
     >
       {children}
     </button>
@@ -453,12 +498,11 @@ function ContextMenu({ menu, tags, onClose }: { menu: MenuState; tags: Tag[]; on
   };
 
   // Keep the menu inside the window.
-  const height = 222 + Math.min(tags.length, 8) * 30;
-  const x = Math.min(menu.x, window.innerWidth - 240);
+  const height = 236 + Math.min(tags.length, 8) * 32;
+  const x = Math.min(menu.x, window.innerWidth - 248);
   const y = Math.min(menu.y, window.innerHeight - height);
 
-  const frame =
-    "fixed z-50 rounded-md border border-line-strong bg-sheet p-1 shadow-[0_10px_30px_-12px_rgba(28,27,24,0.35)]";
+  const frame = "fixed z-50 rounded-lg border border-line bg-sheet p-1 shadow-pop animate-fade";
 
   if (excluding) {
     return (
@@ -470,12 +514,12 @@ function ContextMenu({ menu, tags, onClose }: { menu: MenuState; tags: Tag[]; on
         <button
           type="button"
           onClick={() => setExcluding(false)}
-          className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[12.5px] font-medium text-ink hover:bg-hover"
+          className="flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] font-medium text-ink hover:bg-hover"
         >
           <ArrowLeft className="size-3.5 text-graphite" />
           Stop indexing a folder
         </button>
-        <p className="px-2.5 pb-1.5 text-[11.5px] leading-snug text-pencil">
+        <p className="px-2.5 pb-1.5 text-[12px] leading-snug text-pencil">
           Its documents leave Paperlight. Nothing on disk changes; undo in Settings.
         </p>
         <div className="border-t border-line pt-1">
@@ -487,42 +531,40 @@ function ContextMenu({ menu, tags, onClose }: { menu: MenuState; tags: Tag[]; on
 
   return (
     <div
-      className={clsx(frame, "w-56")}
+      className={clsx(frame, "w-60")}
       style={{ left: x, top: Math.max(8, y) }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <MenuItem icon={<ExternalLink className="size-3.5" />} hint="Enter" onClick={run(() => openFile(row))}>
+      <MenuItem icon={<ExternalLink className="size-4" />} hint="Enter" onClick={run(() => openFile(row))}>
         Open
       </MenuItem>
-      <MenuItem icon={<FolderOpen className="size-3.5" />} hint="Ctrl+Enter" onClick={run(() => revealFile(row))}>
+      <MenuItem icon={<FolderOpen className="size-4" />} hint="Ctrl+Enter" onClick={run(() => revealFile(row))}>
         Show in folder
       </MenuItem>
-      <MenuItem icon={<Copy className="size-3.5" />} hint="Ctrl+Shift+C" onClick={run(() => copyPath(row))}>
+      <MenuItem icon={<ClipboardCopy className="size-4" />} hint="Ctrl+Shift+C" onClick={run(() => copyPath(row))}>
         Copy path
       </MenuItem>
       <MenuItem
-        icon={<Star className={clsx("size-3.5", row.isFavourite && "fill-lamp text-lamp")} />}
+        icon={<Star className={clsx("size-4", row.isFavourite && "fill-lamp text-lamp")} />}
         hint="Ctrl+D"
         onClick={run(() => toggleFavourite(row))}
       >
         {row.isFavourite ? "Remove favourite" : "Add to favourites"}
       </MenuItem>
-      <MenuItem icon={<FolderX className="size-3.5" />} onClick={() => setExcluding(true)}>
+      <MenuItem icon={<FolderX className="size-4" />} onClick={() => setExcluding(true)}>
         Exclude folder…
       </MenuItem>
 
-      <div className="my-1 border-t border-line" />
-      <div className="px-2.5 pb-1 pt-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-pencil">
-        Tags
-      </div>
-      <div className="max-h-60 overflow-y-auto">
+      <div className="-mx-1 my-1 border-t border-line" />
+      <div className="px-2.5 pb-1 pt-1 text-[11.5px] font-semibold text-pencil">Tags</div>
+      <div className="max-h-64 overflow-y-auto">
         {tags.map((tag) => {
           const on = row.tags.includes(tag.id);
           return (
             <MenuItem
               key={tag.id}
               icon={<TagDot color={tag.color} />}
-              hint={on ? <Check className="size-3.5 text-ink" /> : undefined}
+              hint={on ? <Check className="size-4 text-ink" /> : undefined}
               onClick={run(() => toggleTag(row, tag.id))}
             >
               <span className="truncate">{tag.name}</span>
@@ -544,7 +586,7 @@ function ContextMenu({ menu, tags, onClose }: { menu: MenuState; tags: Tag[]; on
         autoFocus={tags.length === 0}
         maxLength={40}
         placeholder="New tag…"
-        className="mt-0.5 h-7 w-full rounded border border-transparent bg-transparent px-2.5 text-[12.5px] text-ink outline-none placeholder:text-pencil focus:border-line-strong focus:bg-paper"
+        className="mt-0.5 h-8 w-full rounded-md border border-transparent bg-transparent px-2.5 text-[13px] text-ink outline-none placeholder:text-pencil focus:border-line-strong focus:bg-paper"
       />
     </div>
   );
@@ -565,11 +607,11 @@ function MenuItem({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2.5 rounded px-2.5 py-1.5 text-left text-[12.5px] text-ink hover:bg-hover"
+      className="flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] text-ink hover:bg-hover"
     >
-      <span className="flex w-3.5 justify-center text-graphite">{icon}</span>
+      <span className="flex w-4 justify-center text-graphite">{icon}</span>
       <span className="flex min-w-0 flex-1 items-center">{children}</span>
-      {hint && <span className="ml-auto font-mono text-[10px] text-pencil">{hint}</span>}
+      {hint && <span className="ml-auto text-[11.5px] text-pencil">{hint}</span>}
     </button>
   );
 }
@@ -581,7 +623,7 @@ function snippet(text: string): ReactNode {
     const [hit, rest = ""] = part.split("\u0003");
     return (
       <span key={i}>
-        <mark className="rounded-[2px] bg-lamp/35 text-ink">{hit}</mark>
+        <mark className="rounded-[3px] bg-lamp-wash px-px text-ink">{hit}</mark>
         {rest}
       </span>
     );
@@ -612,7 +654,7 @@ function mark(text: string, terms?: string[]): ReactNode {
     const s = Math.max(start, pos);
     if (s > pos) out.push(text.slice(pos, s));
     out.push(
-      <mark key={s} className="rounded-[2px] bg-lamp/35 text-inherit">
+      <mark key={s} className="rounded-[3px] bg-lamp-wash px-px text-inherit">
         {text.slice(s, end)}
       </mark>,
     );

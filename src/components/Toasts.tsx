@@ -1,7 +1,7 @@
-import clsx from "clsx";
+import { CircleAlert, CircleCheck } from "lucide-react";
 import { useUi } from "../stores/ui";
 
-/** Small inverted notes in the corner — ink on paper flipped, like a printed label. */
+/** Small notes in the corner, above the status bar. */
 export function Toasts() {
   const toasts = useUi((s) => s.toasts);
   const dismiss = useUi((s) => s.dismissToast);
@@ -12,10 +12,14 @@ export function Toasts() {
           type="button"
           key={t.id}
           onClick={() => dismiss(t.id)}
-          className="pointer-events-auto flex max-w-sm items-stretch overflow-hidden rounded-md bg-ink text-left text-[12.5px] text-on-ink shadow-[0_10px_30px_-12px_rgba(28,27,24,0.5)]"
+          className="pointer-events-auto flex max-w-sm items-start gap-2.5 rounded-lg bg-ink px-3.5 py-2.5 text-left text-[13px] leading-snug text-on-ink shadow-pop animate-rise"
         >
-          <span className={clsx("w-[3px] shrink-0", t.tone === "error" ? "bg-danger" : "bg-lamp")} />
-          <span className="px-3 py-2">{t.text}</span>
+          {t.tone === "error" ? (
+            <CircleAlert className="mt-px size-4 shrink-0 text-danger" strokeWidth={2} />
+          ) : (
+            <CircleCheck className="mt-px size-4 shrink-0 opacity-70" strokeWidth={2} />
+          )}
+          <span>{t.text}</span>
         </button>
       ))}
     </div>

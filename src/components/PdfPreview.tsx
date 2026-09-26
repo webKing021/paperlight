@@ -58,18 +58,14 @@ export function PdfPreview({ id, width }: { id: number; width: number }) {
   }, [id, width]);
 
   if (state === "error") return null;
+  const page =
+    "rounded-[3px] bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.05),0_2px_4px_rgb(0_0_0/0.04),0_12px_28px_-12px_rgb(0_0_0/0.28)]";
   return (
     <div className="relative">
       {state === "loading" && (
-        <div
-          className="animate-pulse rounded-sm bg-paper-2"
-          style={{ width, height: Math.round(width * 1.3) }}
-        />
+        <div className={`${page} dark:bg-sheet`} style={{ width, height: Math.round(width * 1.3) }} />
       )}
-      <canvas
-        ref={canvasRef}
-        className={state === "ready" ? "block rounded-sm bg-white shadow-[0_1px_0_rgba(28,27,24,0.08),0_8px_24px_-12px_rgba(28,27,24,0.35)]" : "hidden"}
-      />
+      <canvas ref={canvasRef} className={state === "ready" ? `block ${page} animate-fade` : "hidden"} />
     </div>
   );
 }

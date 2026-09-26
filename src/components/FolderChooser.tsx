@@ -32,7 +32,7 @@ export function FolderChooser({ dir, onDone }: { dir: string; onDone: () => void
               excludeFolder(folder);
               onDone();
             }}
-            className="truncate rounded px-2.5 py-1.5 text-left font-mono text-[11.5px] text-pencil hover:bg-hover"
+            className="truncate rounded-md px-2.5 py-1.5 text-left text-[12.5px] text-pencil hover:bg-hover"
           >
             {parent}
             <span className="font-medium text-ink">{name}</span>

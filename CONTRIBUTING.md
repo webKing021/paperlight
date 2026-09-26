@@ -70,8 +70,10 @@ These are what make Paperlight Paperlight; PRs are reviewed against them.
 - **Private.** No network access, no telemetry.
 - **Light.** No polling timers, no needless scans, near-zero CPU when idle. Heavy UI code is
   lazy-loaded. Measure memory and CPU for anything that runs in the background.
-- **Calm design.** Reuse the paper/ink/lamp tokens in `src/index.css`, IBM Plex Sans/Mono,
-  hairline rules and small radii. No gradients, glows or pastel badges.
+- **Calm, native design.** Reuse the tokens in `src/index.css` and the shared components
+  (`FileIcon`, `Switch`, `Kbd`, `PageHeader`, `EmptyState`), Segoe UI Variable, hairline
+  borders and small radii. Amber is for the mark, selection and highlights only. No gradients,
+  glows, pastel badges or monospace labels (see PLAN.md §3a).
 
 ## Code of conduct
 
