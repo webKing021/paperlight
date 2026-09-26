@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added: overview with buckets, sliding side panels
+- Overview is the new home: a bucket per document type (PDFs, Word documents,
+  Spreadsheets, Presentations) shown as folder-style tiles with a label-ink tab, count,
+  size and the formats present. Pick a bucket to list its documents right below, sortable
+  and with keyboard navigation and the details panel. Only enabled formats get a bucket.
+- The sidebar and the details panel slide open and closed (200 ms, respects reduced motion).
+  Each has its toggle inside its own header; collapsed, the sidebar leaves an icon rail
+  (Library, types, tags, Settings) and the details panel a slim rail with its toggle.
+  Ctrl+B and Ctrl+I toggle them; both states are remembered. A collapsed details panel
+  loads nothing.
+
 ### Added: choose which file formats are indexed
 - Settings → File formats: tick the formats to index, per type or per extension (with a
   document count for each). Changes are staged and show what they will do before Apply.

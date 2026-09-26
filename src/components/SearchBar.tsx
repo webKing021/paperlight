@@ -1,5 +1,4 @@
-import { Monitor, Moon, PanelRight, Search, Sun, X } from "lucide-react";
-import clsx from "clsx";
+import { Monitor, Moon, Search, Sun, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useUi } from "../stores/ui";
 
@@ -11,8 +10,8 @@ export function SearchBar() {
   const setQuery = useUi((s) => s.setQuery);
   const theme = useUi((s) => s.theme);
   const cycleTheme = useUi((s) => s.cycleTheme);
-  const detailsOpen = useUi((s) => s.detailsOpen);
   const toggleDetails = useUi((s) => s.toggleDetails);
+  const toggleSidebar = useUi((s) => s.toggleSidebar);
   const inputRef = useRef<HTMLInputElement>(null);
   const ThemeIcon = THEME_ICON[theme];
 
@@ -28,10 +27,14 @@ export function SearchBar() {
         e.preventDefault();
         toggleDetails();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleDetails]);
+  }, [toggleDetails, toggleSidebar]);
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-paper px-5">
@@ -63,17 +66,6 @@ export function SearchBar() {
           <kbd className="font-mono text-[10.5px] text-pencil">Ctrl K</kbd>
         )}
       </label>
-      <button
-        type="button"
-        onClick={toggleDetails}
-        title={detailsOpen ? "Hide details (Ctrl+I)" : "Show details (Ctrl+I)"}
-        className={clsx(
-          "flex size-9 items-center justify-center rounded-md transition-colors hover:bg-hover hover:text-ink",
-          detailsOpen ? "text-ink" : "text-graphite",
-        )}
-      >
-        <PanelRight className="size-4" strokeWidth={1.6} />
-      </button>
       <button
         type="button"
         onClick={cycleTheme}
