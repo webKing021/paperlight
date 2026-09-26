@@ -201,6 +201,10 @@ export const api = {
   cancelScan: () => invoke<void>("cancel_scan"),
   shellInfo: () => invoke<ShellInfo>("shell_info"),
   setAutostart: (on: boolean) => invoke<void>("set_autostart", { on }),
+  setTheme: (mode: "system" | "light" | "dark") => invoke<void>("set_theme", { mode }),
+  /** Opens one of Paperlight's web pages in the browser. */
+  openWebsite: (page: "author" | "repo" | "releases" | "issues") =>
+    invoke<void>("open_website", { page }),
   hideQuick: () => invoke<void>("hide_quick"),
   showMain: () => invoke<void>("show_main"),
   getSettings: () => invoke<SettingsInfo>("get_settings"),

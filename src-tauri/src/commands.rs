@@ -87,6 +87,21 @@ pub fn reveal_file(state: State<'_, AppState>, id: i64) -> AppResult<()> {
         .map_err(|e| AppError::msg(format!("Could not open the folder: {e}")))
 }
 
+/// Opens one of Paperlight's own web pages in the browser. The UI names a page rather than
+/// passing a URL, so it can't be used to open arbitrary addresses.
+#[tauri::command]
+pub fn open_website(page: String) -> AppResult<()> {
+    let url = match page.as_str() {
+        "author" => "https://github.com/webKing021",
+        "repo" => "https://github.com/webKing021/paperlight",
+        "releases" => "https://github.com/webKing021/paperlight/releases",
+        "issues" => "https://github.com/webKing021/paperlight/issues",
+        _ => return Err(AppError::msg("Unknown page")),
+    };
+    tauri_plugin_opener::open_url(url, None::<&str>)
+        .map_err(|e| AppError::msg(format!("Could not open the browser: {e}")))
+}
+
 #[tauri::command]
 pub fn add_root(app: AppHandle, state: State<'_, AppState>, path: String) -> AppResult<Root> {
     let root = roots::add_root(&mut state.db.writer(), &path)?;
@@ -243,6 +258,18 @@ pub fn shell_info(app: AppHandle) -> ShellInfo {
 #[tauri::command]
 pub fn set_autostart(app: AppHandle, on: bool) -> AppResult<()> {
     shell::set_autostart(&app, on)
+}
+
+/// Async so the window calls run off the main thread (see `shell::off_main_thread`).
+#[tauri::command]
+pub async fn set_theme(app: AppHandle, mode: String) -> AppResult<()> {
+    shell::set_theme(&app, &mode)
+}
+
+/// The main window's page has its splash ready: show the window (see `shell::show_main`).
+#[tauri::command]
+pub async fn main_ready(app: AppHandle) {
+    shell::main_ready(&app);
 }
 
 #[tauri::command]

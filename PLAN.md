@@ -63,20 +63,23 @@
 
 ## 3a. Brand & visual identity
 
-**Idea:** a reading lamp over a desk of papers — calm, archival, precise. References: library
-card catalogues, printed index tabs, Braun-style product labelling. Deliberately *not* the
-generic "AI app" look (no purple/indigo gradients, sparkles, pastel icon badges, glows or pills).
+**Idea:** a proper Windows tool that feels native and quiet, so documents are the content, not
+the chrome. The brand lives in the mark (a reading lamp's pool of light) and a single amber
+accent. Deliberately *not* the generic "AI app" look: no gradients, glows, sparkles, pastel
+badges, beige "paper" backgrounds or monospace uppercase labels.
 
 | Element | Decision |
 |---|---|
-| Mark | Geometric **P**: ink stem + gap + solid lamp-amber half-disc (the bowl = a pool of light). Two flat shapes, legible at 16 px. App icon = mark on an ink tile. |
-| Wordmark | `paperlight`, lower-case, IBM Plex Sans SemiBold, −1 % tracking |
-| Neutrals (light) | paper `#F5F3EE`, sheet `#FBFAF7`, line `#E0DBD0`, ink `#1C1B18`, graphite `#6F6A60`, pencil `#9D978B` |
-| Neutrals (dark) | warm charcoal `#141311` / `#1A1917`, text `#ECE8DF` — never blue-black |
-| Accent | **lamp** `#E3A23B` — only for the mark, selection bar, highlights, progress. Never text. |
-| File types | label-ink tabs: PDF brick `#B4493B`, Word slate `#3D5A87`, Excel moss `#43744B`, PowerPoint ochre `#B06F24` |
-| Type | IBM Plex Sans (UI) + IBM Plex Mono (extensions, counts, shortcuts, paths in progress, status line). Bundled locally. |
-| Shape | 4–6 px radii, hairline rules, almost no shadow; selection = lamp wash + 3 px amber edge; primary button = solid ink |
+| Mark | Geometric **P**: ink stem + gap + solid lamp-amber half-disc (the bowl = a pool of light). Two flat shapes, legible at 16 px. |
+| Wordmark | `Paperlight`, Segoe UI Variable Display SemiBold, −1 % tracking |
+| Type | Segoe UI Variable (Windows' own UI face: Text for UI, Display for headings); Cascadia Mono only for path patterns. Nothing bundled. |
+| Neutrals (light) | paper `#FFFFFF`, sidebar/fill `#F6F6F8`, hover `#EFEFF2`, selected `#E8E8ED`, line `#E7E7EB`, ink `#18181B`, graphite `#62626A`, pencil `#95959D` |
+| Neutrals (dark) | paper `#1B1B1E`, sidebar `#151517`, surface `#222226`, text `#EDEDF0` |
+| Accent | **lamp** `#E09C26` — only the mark, the selected-item pill, search highlights and progress. Never text. |
+| File types | Real document icons (page, folded corner, coloured badge: PDF / DOC / XLS / PPT, or the extension when it's 3 letters) in the colours people know: PDF `#D03B2F`, Word `#2B5FC0`, Excel `#1B7A46`, PowerPoint `#CF5B26`. Colour appears only in icons and data bars. |
+| Shape | 6 px controls, 8 px cards, hairline borders, shadows only on popovers; rows are rounded, borderless; selection = neutral fill; primary button = solid ink; on/off settings are switches. |
+| Motion | 280 ms ease-out for panels, 200–320 ms fades/rises for views; all respect reduced motion. Splash: stem rises, the light spreads, name fades in (≈1.6 s total, shown from the window's first frame). |
+| Window | Native title bar themed to match (light/dark); window stays hidden until the splash can paint. |
 
 ## 4. Architecture
 

@@ -11,19 +11,25 @@ use std::time::Duration;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::window::Color;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Theme, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
+use crate::db::roots;
 use crate::error::{AppError, AppResult};
 use crate::indexer::{self, scanner::ScanMode};
+use crate::state::AppState;
 
 const MAIN: &str = "main";
 const QUICK: &str = "quick";
-const PAPER: Color = Color(245, 243, 238, 255);
+/// Window colours behind the web page (match `--paper` in index.css), so a window never
+/// flashes the wrong colour before the page paints.
+const PAPER_LIGHT: Color = Color(255, 255, 255, 255);
+const PAPER_DARK: Color = Color(27, 27, 30, 255);
 /// Preferred hotkey first; the next one is used if another app already owns it.
 const HOTKEYS: &[&str] = &["Alt+Space", "Ctrl+Shift+Space", "Ctrl+Alt+P"];
 const QUICK_IDLE: Duration = Duration::from_secs(10 * 60);
+const MAIN_SHOW_FALLBACK: Duration = Duration::from_millis(1500);
 
 /// Started from Windows' startup list: stay in the tray, don't open a window.
 pub fn started_hidden() -> bool {
@@ -65,14 +71,80 @@ pub fn show_main(app: &AppHandle) -> AppResult<()> {
         window.set_focus().map_err(tauri_err)?;
         return Ok(());
     }
-    WebviewWindowBuilder::new(app, MAIN, WebviewUrl::default())
+    // Built hidden: it is shown once the page has its splash ready (`main_ready`), so the
+    // window never appears as an empty black or white frame.
+    let window = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::default())
         .title("Paperlight")
         .inner_size(1200.0, 780.0)
         .min_inner_size(900.0, 560.0)
         .center()
-        .background_color(PAPER)
+        .background_color(PAPER_LIGHT)
+        .visible(false)
         .build()
         .map_err(tauri_err)?;
+    apply_theme(&window, saved_theme(app));
+    // Fallback in case the page never reports in (e.g. it failed to load).
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(MAIN_SHOW_FALLBACK);
+        main_ready(&app);
+    });
+    Ok(())
+}
+
+/// Shows the main window the first time its page is ready to paint. Safe to call repeatedly.
+pub fn main_ready(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(MAIN) else {
+        return;
+    };
+    if window.is_visible().unwrap_or(true) {
+        return;
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Theme
+// ---------------------------------------------------------------------------------------------
+
+/// The theme picked in Paperlight; `None` follows Windows.
+fn saved_theme(app: &AppHandle) -> Option<Theme> {
+    let state = app.state::<AppState>();
+    let mode = roots::get_setting(&state.db.reader(), "theme")
+        .ok()
+        .flatten();
+    match mode.as_deref() {
+        Some("light") => Some(Theme::Light),
+        Some("dark") => Some(Theme::Dark),
+        _ => None,
+    }
+}
+
+/// Gives a window the theme: its title bar and the colour behind the page.
+fn apply_theme(window: &WebviewWindow, theme: Option<Theme>) {
+    let _ = window.set_theme(theme);
+    let dark = matches!(window.theme(), Ok(Theme::Dark));
+    let _ = window.set_background_color(Some(if dark { PAPER_DARK } else { PAPER_LIGHT }));
+}
+
+/// Remembers the theme ("system", "light" or "dark") and applies it to every open window.
+pub fn set_theme(app: &AppHandle, mode: &str) -> AppResult<()> {
+    let mode = if matches!(mode, "light" | "dark") {
+        mode
+    } else {
+        "system"
+    };
+    // The UI sends this on every launch; only write when it actually changed.
+    let db = &app.state::<AppState>().db;
+    let current = roots::get_setting(&db.reader(), "theme")?;
+    if current.as_deref() != Some(mode) {
+        roots::set_setting(&db.writer(), "theme", mode)?;
+    }
+    let theme = saved_theme(app);
+    for window in app.webview_windows().values() {
+        apply_theme(window, theme);
+    }
     Ok(())
 }
 
@@ -91,12 +163,13 @@ fn quick_window(app: &AppHandle) -> AppResult<WebviewWindow> {
         .decorations(false)
         // Undecorated + shadow = native Windows 11 rounded corners and drop shadow.
         .shadow(true)
-        .background_color(PAPER)
+        .background_color(PAPER_LIGHT)
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(false)
         .build()
         .map_err(tauri_err)?;
+    apply_theme(&window, saved_theme(app));
     // Upper third of the screen the cursor is on, like Spotlight / PowerToys Run.
     if let Ok(Some(monitor)) = window.current_monitor() {
         let size = monitor.size();
