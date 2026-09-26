@@ -1,129 +1,134 @@
 import clsx from "clsx";
-import { ArrowRight } from "lucide-react";
-import { useEffect, useState } from "react";
-import { openFile } from "../lib/actions";
-import { api, type FileRow, type FormatInfo, type KindUsage } from "../lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { api, type FormatInfo, type KindUsage, type SortKey } from "../lib/api";
 import { enabledKinds, FILE_KINDS, type FileKind } from "../lib/fileKinds";
-import { formatRelative, formatSize } from "../lib/format";
+import { formatSize } from "../lib/format";
 import { useIndex } from "../stores";
 import { useUi } from "../stores/ui";
+import { FileList, type Fetcher } from "./FileList";
 
-const PER_BUCKET = 5;
+/** What each bucket is called on the overview. */
+const BUCKET_NAME: Record<FileKind, string> = {
+  pdf: "PDFs",
+  word: "Word documents",
+  excel: "Spreadsheets",
+  slides: "Presentations",
+};
 
-interface Bucket {
-  kind: FileKind;
-  usage: KindUsage | undefined;
-  formats: FormatInfo[];
-  recent: FileRow[];
-}
-
-/** Home: one bucket per document type, with its latest documents. */
+/** Home: one bucket per document type; the chosen bucket's documents are listed below. */
 export default function DashboardView() {
   const revision = useIndex((s) => s.revision);
   const disabled = useIndex((s) => s.overview?.disabledFormats);
-  const [buckets, setBuckets] = useState<Bucket[] | null>(null);
+  const bucket = useUi((s) => s.bucket);
+  const setBucket = useUi((s) => s.setBucket);
+  const sort = useUi((s) => s.sort);
+  const setSort = useUi((s) => s.setSort);
+  const [usage, setUsage] = useState<KindUsage[]>([]);
+  const [formats, setFormats] = useState<FormatInfo[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    const kinds = enabledKinds(disabled);
-    Promise.all([
-      api.storageInsights(),
-      api.listFormats(),
-      ...kinds.map((kind) => api.listFiles({ kind, sort: "modified", limit: PER_BUCKET })),
-    ]).then(([insights, formats, ...pages]) => {
+    Promise.all([api.storageInsights(), api.listFormats()]).then(([insights, list]) => {
       if (cancelled) return;
-      const ins = insights as Awaited<ReturnType<typeof api.storageInsights>>;
-      const fmts = formats as FormatInfo[];
-      setBuckets(
-        kinds.map((kind, i) => ({
-          kind,
-          usage: ins.byKind.find((k) => k.kind === kind),
-          formats: fmts.filter((f) => f.kind === kind && f.enabled && f.count > 0),
-          recent: (pages[i] as Awaited<ReturnType<typeof api.listFiles>>).items,
-        })),
-      );
+      setUsage(insights.byKind);
+      setFormats(list);
     }, () => {});
     return () => {
       cancelled = true;
     };
-  }, [revision, disabled]);
+  }, [revision]);
 
-  if (!buckets) return null;
-  const total = buckets.reduce((n, b) => n + (b.usage?.count ?? 0), 0);
+  const kinds = enabledKinds(disabled);
+  const active = kinds.includes(bucket) ? bucket : kinds[0];
+
+  const list = useMemo(() => {
+    const fetcher: Fetcher = (offset, limit) =>
+      api.listFiles({ kind: active, sort: sort.key, ascending: sort.ascending, offset, limit });
+    return { fetcher, key: JSON.stringify(["bucket", active, sort]) };
+  }, [active, sort]);
+
+  const onSort = (key: SortKey) =>
+    setSort(sort.key === key ? { key, ascending: !sort.ascending } : { key, ascending: key === "name" });
 
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 border-b border-line px-5 py-2 font-mono text-[10.5px] uppercase tracking-[0.08em] text-pencil">
-        Overview
+      <div
+        className="grid shrink-0 gap-3 px-5 pb-5 pt-6"
+        style={{ gridTemplateColumns: `repeat(${kinds.length}, minmax(0, 1fr))` }}
+      >
+        {kinds.map((kind) => (
+          <BucketTile
+            key={kind}
+            kind={kind}
+            usage={usage.find((u) => u.kind === kind)}
+            formats={formats.filter((f) => f.kind === kind && f.enabled && f.count > 0)}
+            selected={kind === active}
+            onSelect={() => setBucket(kind)}
+          />
+        ))}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4 p-5">
-          {buckets.map((b) => (
-            <BucketCard key={b.kind} bucket={b} total={total} />
-          ))}
-        </div>
+      <div className="min-h-0 flex-1 border-t border-line">
+        {active && (
+          <FileList
+            fetcher={list.fetcher}
+            fetchKey={list.key}
+            revision={revision}
+            title={BUCKET_NAME[active]}
+            emptyTitle={`No ${BUCKET_NAME[active].toLowerCase()} yet`}
+            emptyHint="They appear here as soon as they're found."
+            sort={sort}
+            onSort={onSort}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-function BucketCard({ bucket, total }: { bucket: Bucket; total: number }) {
-  const setView = useUi((s) => s.setView);
-  const selectedId = useUi((s) => s.selectedId);
-  const setSelectedId = useUi((s) => s.setSelectedId);
-  const info = FILE_KINDS[bucket.kind];
-  const count = bucket.usage?.count ?? 0;
-  const share = total > 0 ? count / total : 0;
-
+function BucketTile({
+  kind,
+  usage,
+  formats,
+  selected,
+  onSelect,
+}: {
+  kind: FileKind;
+  usage: KindUsage | undefined;
+  formats: FormatInfo[];
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const info = FILE_KINDS[kind];
+  const exts = formats.map((f) => f.ext).join(" · ");
   return (
-    <section className="flex flex-col rounded-md border border-line bg-sheet">
-      <header className="px-4 pt-3.5">
-        <div className="flex items-baseline gap-2.5">
-          <span className={clsx("h-4 w-[3px] self-center rounded-full", info.swatch)} />
-          <h2 className="text-[15px] font-semibold text-ink">{info.label}</h2>
-          <span className="ml-auto font-mono text-[11.5px] tabular-nums text-graphite">
-            {count.toLocaleString()} · {formatSize(bucket.usage?.size ?? 0)}
-          </span>
-        </div>
-        <div className="mt-2.5 h-[2px] bg-line">
-          <div className={clsx("h-full", info.swatch)} style={{ width: `${share * 100}%` }} />
-        </div>
-        <div className="mt-2 flex min-h-4 flex-wrap gap-x-3 font-mono text-[11px] text-pencil">
-          {bucket.formats.map((f) => (
-            <span key={f.ext}>
-              {f.ext} <span className="text-graphite">{f.count}</span>
-            </span>
-          ))}
-        </div>
-      </header>
-      <ul className="mt-2 flex-1 border-t border-line">
-        {bucket.recent.length === 0 && (
-          <li className="px-4 py-4 text-[12.5px] text-pencil">No {info.label} files found yet.</li>
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={clsx(
+        "group relative mt-[6px] flex min-w-0 flex-col rounded-md border px-4 pb-3.5 pt-4 text-left transition-colors",
+        selected
+          ? "border-ink bg-sheet"
+          : "border-line bg-sheet/60 hover:border-line-strong hover:bg-sheet",
+      )}
+    >
+      {/* Folder tab in the type's label-ink colour. */}
+      <span
+        className={clsx(
+          "absolute -top-[6px] left-4 h-[6px] w-12 rounded-t-[3px] transition-[width]",
+          info.swatch,
+          selected && "w-16",
         )}
-        {bucket.recent.map((row) => (
-          <li
-            key={row.id}
-            onClick={() => setSelectedId(row.id)}
-            onDoubleClick={() => openFile(row)}
-            title={row.path}
-            className={clsx(
-              "flex cursor-default items-center gap-3 border-b border-line/60 px-4 py-2 last:border-b-0",
-              selectedId === row.id ? "bg-lamp-wash" : "hover:bg-paper-2",
-            )}
-          >
-            <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{row.name}</span>
-            <span className="shrink-0 text-[11.5px] text-pencil">{formatRelative(row.modifiedAt)}</span>
-          </li>
-        ))}
-      </ul>
-      <button
-        type="button"
-        onClick={() => setView({ type: "kind", kind: bucket.kind })}
-        className="flex items-center gap-1.5 border-t border-line px-4 py-2 text-left text-[12.5px] font-medium text-ink-2 hover:bg-hover hover:text-ink"
-      >
-        Show all {count.toLocaleString()}
-        <ArrowRight className="size-3.5" />
-      </button>
-    </section>
+      />
+      <span className="truncate text-[12.5px] font-medium text-graphite">{BUCKET_NAME[kind]}</span>
+      <span className="mt-1 text-[30px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-ink">
+        {(usage?.count ?? 0).toLocaleString()}
+      </span>
+      <span className="mt-3 flex min-w-0 items-baseline gap-2 font-mono text-[11px] text-pencil">
+        <span className="shrink-0 text-graphite">{formatSize(usage?.size ?? 0)}</span>
+        {exts && <span className="truncate">{exts}</span>}
+      </span>
+      {selected && <span className="absolute inset-x-4 bottom-0 h-[2px] rounded-t bg-lamp" />}
+    </button>
   );
 }

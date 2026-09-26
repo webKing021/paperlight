@@ -163,7 +163,7 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1">
-        <SlidePanel side="left" width={224} open={sidebarOpen}>
+        <SlidePanel side="left" width={224} rail={48} state={sidebarOpen ? "open" : "rail"}>
           <Sidebar />
         </SlidePanel>
         <main className="flex min-w-0 flex-1 flex-col">
@@ -192,7 +192,12 @@ export default function App() {
             ) : null}
           </section>
         </main>
-        <SlidePanel side="right" width={320} open={detailsOpen && !firstRun && view.type !== "settings"}>
+        <SlidePanel
+          side="right"
+          width={320}
+          rail={44}
+          state={firstRun || view.type === "settings" ? "hidden" : detailsOpen ? "open" : "rail"}
+        >
           <DetailsPane />
         </SlidePanel>
       </div>

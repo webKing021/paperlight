@@ -3,47 +3,53 @@ import { useEffect, useState, type ReactNode } from "react";
 
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+export type PanelState = "open" | "rail" | "hidden";
+
 /**
- * A side panel that slides open and closed by animating its width. The content keeps its full
- * width and is clipped, so it slides rather than squashes; it is unmounted once closed, so a
- * closed panel costs nothing.
+ * A side panel that slides between open, a slim rail (collapsed) and hidden by animating its
+ * width. The content keeps its full width and is clipped, so it slides rather than squashes;
+ * it is unmounted once hidden.
  */
 export function SlidePanel({
-  open,
+  state,
   width,
+  rail,
   side,
   children,
 }: {
-  open: boolean;
+  state: PanelState;
   width: number;
+  rail: number;
   side: "left" | "right";
   children: ReactNode;
 }) {
-  const [mounted, setMounted] = useState(open);
-  const [shown, setShown] = useState(open);
+  const target = state === "open" ? width : state === "rail" ? rail : 0;
+  const [mounted, setMounted] = useState(state !== "hidden");
+  const [current, setCurrent] = useState(target);
 
   useEffect(() => {
-    if (open) {
+    if (state !== "hidden") {
       setMounted(true);
-      // Two frames: mount at width 0 first, then grow, so the transition runs.
-      const id = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
+      // Next frame, so a freshly mounted panel starts from its old width and animates.
+      const id = requestAnimationFrame(() => setCurrent(target));
       return () => cancelAnimationFrame(id);
     }
-    setShown(false);
+    setCurrent(0);
     if (reducedMotion()) setMounted(false);
-  }, [open]);
+  }, [state, target]);
 
   if (!mounted) return null;
   return (
     <div
       className={clsx(
-        "flex h-full shrink-0 overflow-hidden transition-[width,opacity] duration-200 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
-        side === "right" && "justify-end",
-        shown ? "opacity-100" : "opacity-60",
+        "flex h-full shrink-0 overflow-hidden border-line transition-[width] duration-200 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+        side === "left" ? "border-r" : "justify-end border-l",
       )}
-      style={{ width: shown ? width : 0 }}
+      style={{ width: current }}
       onTransitionEnd={(e) => {
-        if (e.target === e.currentTarget && e.propertyName === "width" && !open) setMounted(false);
+        if (e.target === e.currentTarget && e.propertyName === "width" && state === "hidden") {
+          setMounted(false);
+        }
       }}
     >
       <div className="h-full shrink-0" style={{ width }}>

@@ -45,6 +45,9 @@ interface UiState {
   toggleDetails: () => void;
   sidebarOpen: boolean;
   toggleSidebar: () => void;
+  /** Bucket (document type) chosen on the overview. */
+  bucket: FileKind;
+  setBucket: (bucket: FileKind) => void;
   toasts: Toast[];
   toast: (text: string, tone?: Toast["tone"]) => void;
   dismissToast: (id: number) => void;
@@ -112,6 +115,8 @@ export const useUi = create<UiState>((set, get) => ({
     saveFlag(DETAILS_KEY, detailsOpen);
     set({ detailsOpen });
   },
+  bucket: "pdf",
+  setBucket: (bucket) => set({ bucket }),
   sidebarOpen: loadFlag(SIDEBAR_KEY, true),
   toggleSidebar: () => {
     const sidebarOpen = !get().sidebarOpen;

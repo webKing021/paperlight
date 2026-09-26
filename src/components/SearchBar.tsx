@@ -1,5 +1,4 @@
-import { Monitor, Moon, PanelLeft, PanelRight, Search, Sun, X } from "lucide-react";
-import clsx from "clsx";
+import { Monitor, Moon, Search, Sun, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useUi } from "../stores/ui";
 
@@ -11,9 +10,7 @@ export function SearchBar() {
   const setQuery = useUi((s) => s.setQuery);
   const theme = useUi((s) => s.theme);
   const cycleTheme = useUi((s) => s.cycleTheme);
-  const detailsOpen = useUi((s) => s.detailsOpen);
   const toggleDetails = useUi((s) => s.toggleDetails);
-  const sidebarOpen = useUi((s) => s.sidebarOpen);
   const toggleSidebar = useUi((s) => s.toggleSidebar);
   const inputRef = useRef<HTMLInputElement>(null);
   const ThemeIcon = THEME_ICON[theme];
@@ -41,17 +38,6 @@ export function SearchBar() {
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-paper px-5">
-      <button
-        type="button"
-        onClick={toggleSidebar}
-        title={sidebarOpen ? "Hide sidebar (Ctrl+B)" : "Show sidebar (Ctrl+B)"}
-        className={clsx(
-          "-ml-2 flex size-9 items-center justify-center rounded-md transition-colors hover:bg-hover hover:text-ink",
-          sidebarOpen ? "text-ink" : "text-graphite",
-        )}
-      >
-        <PanelLeft className="size-4" strokeWidth={1.6} />
-      </button>
       <label className="flex h-9 flex-1 items-center gap-2.5 rounded-md border border-line bg-sheet px-3 transition-colors focus-within:border-ink">
         <Search className="size-[15px] text-pencil" strokeWidth={1.8} />
         <input
@@ -80,17 +66,6 @@ export function SearchBar() {
           <kbd className="font-mono text-[10.5px] text-pencil">Ctrl K</kbd>
         )}
       </label>
-      <button
-        type="button"
-        onClick={toggleDetails}
-        title={detailsOpen ? "Hide details (Ctrl+I)" : "Show details (Ctrl+I)"}
-        className={clsx(
-          "flex size-9 items-center justify-center rounded-md transition-colors hover:bg-hover hover:text-ink",
-          detailsOpen ? "text-ink" : "text-graphite",
-        )}
-      >
-        <PanelRight className="size-4" strokeWidth={1.6} />
-      </button>
       <button
         type="button"
         onClick={cycleTheme}
