@@ -1,116 +1,99 @@
-<p><img src="public/paperlight.svg" width="56" alt="Paperlight"></p>
+<p align="center">
+  <img src="public/paperlight.svg" width="72" alt="Paperlight logo">
+</p>
 
-# Paperlight
+<h1 align="center">Paperlight</h1>
 
-A spotlight for every document on your PC.
+<p align="center">
+  <b>Every document on your PC, one search away.</b><br>
+  Find any PDF, Word, Excel or PowerPoint file by name, folder or the words inside it.<br>
+  Fast, private, and it never touches your files.
+</p>
 
-Paperlight finds every PDF, Word, Excel and PowerPoint file on your Windows PC and keeps the
-list current as files are added, renamed, moved or deleted. Search by name, folder or the words
-inside a document, from the app or from anywhere with <kbd>Alt</kbd>+<kbd>Space</kbd>.
-Your files are only read: nothing is moved, renamed, uploaded or deleted.
+<p align="center">
+  <a href="https://github.com/webKing021/paperlight/releases/latest"><b>Download for Windows</b></a> ·
+  <a href="#features">Features</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a>
+</p>
 
-![Paperlight: all documents with a PDF preview](docs/screenshots/library.png)
+<p align="center">
+  <a href="https://github.com/webKing021/paperlight/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/webKing021/paperlight?color=1c1b18&label=release"></a>
+  <a href="https://github.com/webKing021/paperlight/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/webKing021/paperlight/ci.yml?branch=main&label=ci"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-e3a23b"></a>
+</p>
 
-## Download
+![Paperlight overview: a bucket per document type, with a PDF preview](docs/screenshots/overview.png)
 
-Get `Paperlight_1.0.0_x64-setup.exe` from the
-[latest release](https://github.com/webKing021/paperlight/releases/latest) and run it
-(Windows 10/11, 64-bit; installs per user, no admin rights needed). The installer is not
-code-signed yet, so Windows SmartScreen may ask you to confirm: choose *More info → Run anyway*.
+<!--
+  DEMO VIDEO
+  1. Open this file on github.com and click the pencil (Edit).
+  2. Drag the .mp4 (max 100 MB) onto this spot. GitHub uploads it and inserts a link.
+  3. Put that link on its own line, replacing this comment, and commit.
+  GitHub turns the link into an inline video player.
+-->
 
-On first run, choose the drives or folders to index and press *Start indexing*. A laptop with a
-few hundred documents is indexed in seconds; after that, a file watcher keeps up in real time.
+## Why
 
-## What it does
+Documents pile up everywhere: Downloads, Desktop, project folders, old drives. You remember
+what a file was about, not where you saved it. Paperlight indexes them all once, keeps up as
+they change, and finds any of them in milliseconds.
 
-**Search names, folders and text.** Type part of a name, a folder, or a phrase from inside the
-document. Results are ranked (names first, then folders, then text), tolerate small typos
-(`reprot` finds *report*), and show the matching passage.
+## Features
 
-![Searching for a phrase inside documents](docs/screenshots/search.png)
+- **Search inside documents.** Names, folders and the text of PDFs, Word, Excel and PowerPoint
+  files, typo-tolerant, with the matching passage highlighted.
+- **Buckets.** One tile per document type: PDFs, Word documents, Spreadsheets, Presentations.
+- **Quick search from anywhere.** <kbd>Alt</kbd>+<kbd>Space</kbd> in any app, then <kbd>Enter</kbd> to open.
+- **Always current.** New, renamed, moved and deleted files show up within a second.
+- **Organise without touching files.** Favourites, tags, recently opened, previews.
+- **Duplicates and storage.** Find byte-identical copies and see what takes space.
+- **You choose what's indexed.** Pick the file formats and folders; skip the rest.
+- **Light and dark.** Follows Windows, or pick one.
 
-**Quick search from any app.** <kbd>Alt</kbd>+<kbd>Space</kbd> opens a small launcher
-(falls back to <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Space</kbd> or <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>P</kbd>
-if another app owns it). <kbd>Enter</kbd> opens, <kbd>Ctrl</kbd>+<kbd>Enter</kbd> shows the file in
-its folder.
+## Screenshots
 
-<img src="docs/screenshots/quick-search.png" width="620" alt="Quick search launcher">
-
-**Always current.** New, changed, renamed, moved and deleted documents show up within about a
-second. Renames and moves keep favourites, tags and history.
-
-**Organise without touching files.** Favourites, tags, recently opened, recently modified and
-per-type views. Tags live in Paperlight's own database, never in your files.
-
-**Duplicates.** Finds byte-identical copies: same size first, then the first 64 KB, then a full
-blake3 hash, only for files that still match. Shows where each copy lives, with Open and Show in
-folder. Paperlight never deletes anything.
-
-![Duplicate documents](docs/screenshots/duplicates.png)
-
-**Storage.** Count, size and share per type, and the largest documents.
-
-![Storage insights](docs/screenshots/storage.png)
-
-**Settings.** Locations (add, pause, remove), excluded folders, theme, start with Windows,
-rescan and reset. Any document's right-click menu also has *Exclude folder…*, which lets you drop
-a whole tree (say, a tools folder) from the index in one click.
-
-![Settings](docs/screenshots/settings.png)
-
-Light and dark themes follow Windows, or pick one.
-
-![Dark theme](docs/screenshots/dark.png)
-
-### Keyboard
-
-| Keys | Action |
+| Search inside documents | Quick search (<kbd>Alt</kbd>+<kbd>Space</kbd>) |
 |---|---|
-| <kbd>Ctrl</kbd>+<kbd>K</kbd> | Focus search |
-| <kbd>↑</kbd> <kbd>↓</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd> | Move through results |
-| <kbd>Enter</kbd> / <kbd>Ctrl</kbd>+<kbd>Enter</kbd> | Open / show in folder |
-| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> | Copy path |
-| <kbd>Ctrl</kbd>+<kbd>D</kbd> | Favourite |
-| <kbd>Ctrl</kbd>+<kbd>T</kbd> | Tag |
-| <kbd>Ctrl</kbd>+<kbd>I</kbd> | Details panel |
-| <kbd>Alt</kbd>+<kbd>Space</kbd> | Quick search from any app |
+| ![Search results with matching passages](docs/screenshots/search.png) | ![Quick search launcher](docs/screenshots/quick-search.png) |
+| **Duplicates** | **Storage** |
+| ![Identical copies grouped](docs/screenshots/duplicates.png) | ![Size by type and largest documents](docs/screenshots/storage.png) |
+| **Settings: formats and folders** | **Dark theme** |
+| ![Choose file formats](docs/screenshots/settings.png) | ![Dark theme](docs/screenshots/dark.png) |
+
+## Install
+
+1. Download `Paperlight_x.y.z_x64-setup.exe` from the [latest release](https://github.com/webKing021/paperlight/releases/latest).
+2. Run it. Windows 10/11, 64-bit; no admin rights needed. SmartScreen may warn because the
+   installer isn't code-signed yet: *More info → Run anyway*.
+3. Pick the drives or folders to index and press **Start indexing**.
 
 ## Private and light
 
-- **Local only.** No network access, no telemetry, no accounts. The index lives in
-  `%APPDATA%\com.paperlight.app`.
-- **Read-only on your documents.** Files are opened only to read their text (for search) and,
-  in the Duplicates view, to compare contents.
-- **Quiet in the background.** One full scan, then an event-driven watcher (no polling). A
-  catch-up sync on launch runs only if the index is over 12 hours old, at background CPU and
-  disk priority, and writes only what changed.
-- **Small.** 4.7 MB installer. With the window closed, Paperlight sits in the tray as a ~6 MB
-  process; the window's web view is destroyed, not hidden. Idle CPU is zero. The index for a
-  few hundred documents, including their searchable text, takes a few MB.
+- **Local only.** No network access, no telemetry, no account.
+- **Read-only.** Your files are never modified, moved or deleted.
+- **Tiny.** ~5 MB installer, ~6 MB of memory in the tray, zero CPU when idle.
 
-Skipped by default: Windows, Program Files, ProgramData, AppData, the Recycle Bin, and
-developer folders such as `node_modules`, `venv` and dot-folders. Legacy `.doc` and `.ppt`
-files are listed and searchable by name, but their text isn't read.
+## Keyboard
+
+<kbd>Ctrl</kbd>+<kbd>K</kbd> search · <kbd>Enter</kbd> open · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> show in folder ·
+<kbd>Ctrl</kbd>+<kbd>D</kbd> favourite · <kbd>Ctrl</kbd>+<kbd>T</kbd> tag ·
+<kbd>Ctrl</kbd>+<kbd>B</kbd> sidebar · <kbd>Ctrl</kbd>+<kbd>I</kbd> details
 
 ## Build from source
 
-Requirements: Node.js 20+, Rust (stable, MSVC), Visual Studio C++ Build Tools, WebView2.
-
 ```bash
 npm install
-npm run tauri dev      # run with hot reload
-npm run tauri build    # installer in src-tauri/target/release/bundle/nsis
+npm run tauri dev      # run
+npm run tauri build    # installer → src-tauri/target/release/bundle/nsis
 ```
 
-Checks run in CI: `npm run build` (type-check + bundle), `cargo fmt --check`,
-`cargo clippy -D warnings`, `cargo test`.
+Needs Node.js 20+, Rust (MSVC) and the Visual Studio C++ Build Tools. Built with
+[Tauri 2](https://tauri.app), Rust, SQLite FTS5 and React.
 
-Set `PAPERLIGHT_DATA_DIR` to keep a separate index (useful for demos and testing). The
-screenshots above were taken this way, on a folder of made-up sample documents.
+## Contributing
 
-Built with [Tauri 2](https://tauri.app), Rust, SQLite (FTS5), React and Tailwind CSS.
-The design and roadmap are in [PLAN.md](PLAN.md); release notes in [CHANGELOG.md](CHANGELOG.md).
+Issues and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and look
+for [good first issues](https://github.com/webKing021/paperlight/labels/good%20first%20issue).
+If Paperlight saves you time, a star helps others find it.
 
-## License
-
-MIT
+Screenshots show made-up sample documents. [MIT](LICENSE) licensed.
