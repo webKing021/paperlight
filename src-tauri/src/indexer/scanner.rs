@@ -116,7 +116,12 @@ pub fn scan(
         }
         // Whatever is left in the snapshot was not found on disk any more.
         let gone: Vec<i64> = known.values().map(|k| k.id).collect();
-        summary.removed += files::delete_ids(&mut db.writer(), &gone)? as u64;
+        if !gone.is_empty() {
+            let mut conn = db.writer();
+            let tx = conn.transaction()?;
+            summary.removed += files::delete_ids(&tx, &gone)? as u64;
+            tx.commit()?;
+        }
     }
 
     if !summary.cancelled {
