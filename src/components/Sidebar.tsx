@@ -1,5 +1,15 @@
 import clsx from "clsx";
-import { Clock, Copy, Files, History, Plus, Star, type LucideIcon } from "lucide-react";
+import {
+  Clock,
+  Copy,
+  Files,
+  HardDrive,
+  History,
+  Plus,
+  Settings,
+  Star,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, TAG_COLORS, type Tag } from "../lib/api";
 import { FILE_KINDS, KIND_ORDER } from "../lib/fileKinds";
@@ -21,6 +31,7 @@ const LIBRARY: NavItem[] = [
   { label: "Recently opened", icon: History, view: { type: "opened" }, count: (s) => s.opened },
   { label: "Favourites", icon: Star, view: { type: "favourites" }, count: (s) => s.favourites },
   { label: "Duplicates", icon: Copy, view: { type: "duplicates" } },
+  { label: "Storage", icon: HardDrive, view: { type: "storage" } },
 ];
 
 function Section({
@@ -167,6 +178,15 @@ export function Sidebar() {
           )}
         </Section>
       </nav>
+      <div className="border-t border-line py-1.5">
+        <NavButton
+          active={view.type === "settings"}
+          onClick={() => setView({ type: "settings" })}
+        >
+          <Settings className="size-[15px]" strokeWidth={1.6} />
+          Settings
+        </NavButton>
+      </div>
     </aside>
   );
 }

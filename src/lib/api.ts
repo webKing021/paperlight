@@ -124,6 +124,43 @@ export interface ShellInfo {
   autostart: boolean;
 }
 
+export interface RootInfo extends Root {
+  /** Documents indexed in this location. */
+  count: number;
+}
+
+export interface SettingsInfo {
+  roots: RootInfo[];
+  exclusions: string[];
+  /** Bytes the index takes on disk. */
+  indexBytes: number;
+  hotkey: string | null;
+  autostart: boolean;
+}
+
+export interface KindUsage {
+  kind: FileKind;
+  count: number;
+  size: number;
+}
+
+export interface StorageInsights {
+  byKind: KindUsage[];
+  largest: FileRow[];
+  indexBytes: number;
+}
+
+export interface DupGroup {
+  /** Size of each copy in bytes. */
+  size: number;
+  files: FileRow[];
+}
+
+export interface DupProgress {
+  done: number;
+  total: number;
+}
+
 export const api = {
   getOverview: () => invoke<Overview>("get_overview"),
   listFiles: (query: ListQuery) => invoke<Page>("list_files", { query }),
@@ -137,7 +174,8 @@ export const api = {
   setRootEnabled: (id: number, enabled: boolean) =>
     invoke<void>("set_root_enabled", { id, enabled }),
   listExclusions: () => invoke<string[]>("list_exclusions"),
-  addExclusion: (pattern: string) => invoke<void>("add_exclusion", { pattern }),
+  /** Resolves to the number of documents the exclusion removed from the index. */
+  addExclusion: (pattern: string) => invoke<number>("add_exclusion", { pattern }),
   removeExclusion: (pattern: string) => invoke<void>("remove_exclusion", { pattern }),
   startScan: () => invoke<boolean>("start_scan"),
   setFavourite: (id: number, on: boolean) => invoke<void>("set_favourite", { id, on }),
@@ -153,6 +191,10 @@ export const api = {
   setAutostart: (on: boolean) => invoke<void>("set_autostart", { on }),
   hideQuick: () => invoke<void>("hide_quick"),
   showMain: () => invoke<void>("show_main"),
+  getSettings: () => invoke<SettingsInfo>("get_settings"),
+  resetIndex: () => invoke<void>("reset_index"),
+  storageInsights: () => invoke<StorageInsights>("storage_insights"),
+  findDuplicates: () => invoke<DupGroup[]>("find_duplicates"),
 };
 
 export const events = {
@@ -167,6 +209,8 @@ export const events = {
     listen<IndexChange>("index-changed", (e) => cb(e.payload)),
   onContentProgress: (cb: (pending: number) => void): Promise<UnlistenFn> =>
     listen<{ pending: number }>("content-progress", (e) => cb(e.payload.pending)),
+  onDupesProgress: (cb: (p: DupProgress) => void): Promise<UnlistenFn> =>
+    listen<DupProgress>("dupes-progress", (e) => cb(e.payload)),
   onScanError: (cb: (message: string) => void): Promise<UnlistenFn> =>
     listen<string>("scan-error", (e) => cb(e.payload)),
 };

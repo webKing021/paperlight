@@ -69,6 +69,12 @@ pub fn insert_batch(
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)
          ON CONFLICT(path) DO UPDATE SET
              root_id      = excluded.root_id,
+             content_status = CASE WHEN size = excluded.size
+                                        AND modified_at IS excluded.modified_at
+                                   THEN content_status ELSE 0 END,
+             hash         = CASE WHEN size = excluded.size
+                                        AND modified_at IS excluded.modified_at
+                                   THEN hash ELSE NULL END,
              size         = excluded.size,
              created_at   = excluded.created_at,
              modified_at  = excluded.modified_at,
@@ -98,7 +104,9 @@ pub fn update_batch(tx: &Transaction, now: i64, records: &[(i64, FileRecord)]) -
         "UPDATE files SET path = ?2, name = ?3, ext = ?4, kind = ?5, dir = ?6, size = ?7,
                           created_at = ?8, modified_at = ?9, last_seen_at = ?10,
                           content_status = CASE WHEN size = ?7 AND modified_at IS ?9
-                                                THEN content_status ELSE 0 END
+                                                THEN content_status ELSE 0 END,
+                          hash = CASE WHEN size = ?7 AND modified_at IS ?9
+                                      THEN hash ELSE NULL END
          WHERE id = ?1",
     )?;
     for (id, f) in records {
@@ -431,6 +439,65 @@ pub fn record_open(conn: &Connection, id: i64, now: i64) -> AppResult<()> {
     Ok(())
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KindUsage {
+    pub kind: String,
+    pub count: i64,
+    pub size: i64,
+}
+
+/// Count and size per document kind, largest first.
+pub fn usage_by_kind(conn: &Connection) -> AppResult<Vec<KindUsage>> {
+    let mut stmt = conn.prepare(
+        "SELECT kind, COUNT(*), COALESCE(SUM(size), 0) FROM files GROUP BY kind ORDER BY 3 DESC",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok(KindUsage {
+            kind: r.get(0)?,
+            count: r.get(1)?,
+            size: r.get(2)?,
+        })
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+/// The `limit` biggest documents (an index range scan on `files_size`).
+pub fn largest(conn: &Connection, limit: i64) -> AppResult<Vec<FileRow>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {FILE_COLUMNS} FROM files f ORDER BY f.size DESC LIMIT ?1"
+    ))?;
+    let mut rows: Vec<FileRow> = stmt
+        .query_map([limit], FileRow::from_row)?
+        .collect::<Result<_, _>>()?;
+    attach_tags(conn, &mut rows)?;
+    Ok(rows)
+}
+
+/// Number of indexed documents per root id.
+pub fn count_by_root(conn: &Connection) -> AppResult<HashMap<i64, i64>> {
+    let mut stmt = conn.prepare(
+        "SELECT root_id, COUNT(*) FROM files WHERE root_id IS NOT NULL GROUP BY root_id",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+/// Empties the index (documents, their text, favourites, tags on documents, history). Tag
+/// names, locations, exclusions and settings are kept. Files on disk are never touched.
+pub fn reset_all(conn: &mut Connection) -> AppResult<()> {
+    let tx = conn.transaction()?;
+    // Triggers clear the name and text indexes; file_tags cascade.
+    tx.execute_batch(
+        "DELETE FROM files;
+         DELETE FROM settings WHERE key = 'last_scan_at';",
+    )?;
+    tx.commit()?;
+    // Give the space back and keep the WAL small.
+    conn.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);")?;
+    Ok(())
+}
+
 /// Everything the details panel shows about one document.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -471,4 +538,44 @@ pub fn details(conn: &Connection, id: i64) -> AppResult<Option<Details>> {
         excerpt,
         text_status,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::{roots, tags, Db};
+    use crate::indexer::scanner::{scan, ScanMode};
+    use std::sync::atomic::AtomicBool;
+
+    #[test]
+    fn reset_empties_the_index_but_keeps_settings() {
+        let tmp = tempfile::tempdir().unwrap();
+        let docs = tmp.path().join("docs");
+        std::fs::create_dir_all(&docs).unwrap();
+        std::fs::write(docs.join("a.pdf"), b"x").unwrap();
+        std::fs::write(docs.join("b.docx"), b"y").unwrap();
+        let db = Db::open(&tmp.path().join("test.db")).unwrap();
+        roots::add_root(&mut db.writer(), &docs.to_string_lossy()).unwrap();
+        roots::add_exclusion(&db.writer(), "build").unwrap();
+        scan(&db, &AtomicBool::new(false), ScanMode::Foreground, |_| {}).unwrap();
+        let tag = tags::create_tag(&db.writer(), "tax").unwrap();
+        tags::set_file_tag(&db.writer(), 1, tag.id, true).unwrap();
+
+        reset_all(&mut db.writer()).unwrap();
+
+        let conn = db.reader();
+        assert_eq!(stats(&conn).unwrap().total, 0);
+        let fts: i64 = conn
+            .query_row("SELECT COUNT(*) FROM files_fts", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(fts, 0);
+        assert_eq!(roots::list_roots(&conn).unwrap().len(), 1);
+        assert_eq!(roots::list_exclusions(&conn).unwrap(), ["build"]);
+        assert_eq!(tags::list_tags(&conn).unwrap().len(), 1);
+        assert!(roots::get_setting(&conn, "last_scan_at").unwrap().is_none());
+        drop(conn);
+
+        let again = scan(&db, &AtomicBool::new(false), ScanMode::Foreground, |_| {}).unwrap();
+        assert_eq!(again.added, 2);
+    }
 }

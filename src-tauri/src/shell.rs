@@ -33,6 +33,8 @@ pub fn started_hidden() -> bool {
 #[derive(Default)]
 pub struct ShellState {
     pub hotkey: Mutex<Option<String>>,
+    /// The tray's "Start with Windows" check, kept in step with the Settings toggle.
+    startup_item: Mutex<Option<CheckMenuItem<tauri::Wry>>>,
     /// Bumped every time the quick window is shown, so a pending idle-close can tell it's stale.
     quick_generation: AtomicU64,
 }
@@ -209,7 +211,17 @@ pub fn set_autostart(app: &AppHandle, on: bool) -> AppResult<()> {
     } else {
         launcher.disable()
     };
-    result.map_err(|e| AppError::msg(format!("Could not change startup setting: {e}")))
+    result.map_err(|e| AppError::msg(format!("Could not change startup setting: {e}")))?;
+    if let Some(item) = app
+        .state::<ShellState>()
+        .startup_item
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+    {
+        let _ = item.set_checked(on);
+    }
+    Ok(())
 }
 
 fn build_tray(app: &AppHandle) -> AppResult<()> {
@@ -242,6 +254,10 @@ fn build_tray(app: &AppHandle) -> AppResult<()> {
     )
     .map_err(tauri_err)?;
 
+    *app.state::<ShellState>()
+        .startup_item
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some(startup.clone());
     let startup_item = startup.clone();
     let mut tray = TrayIconBuilder::with_id("paperlight")
         .tooltip("Paperlight: every document, one search away")

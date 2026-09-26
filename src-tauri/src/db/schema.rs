@@ -97,6 +97,13 @@ const MIGRATIONS: &[&str] = &[
     END;
     CREATE INDEX files_content_pending ON files(content_status) WHERE content_status = 0;
     "#,
+    // v4: duplicates (blake3 of files that share a size, cleared when a file changes) and
+    // storage insights (largest files)
+    r#"
+    ALTER TABLE files ADD COLUMN hash BLOB;
+    CREATE INDEX files_size ON files(size);
+    CREATE INDEX files_hash ON files(hash) WHERE hash IS NOT NULL;
+    "#,
 ];
 
 pub fn migrate(conn: &mut Connection) -> AppResult<()> {
