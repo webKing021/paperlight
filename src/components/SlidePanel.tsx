@@ -1,60 +1,79 @@
 import clsx from "clsx";
-import { useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export type PanelState = "open" | "rail" | "hidden";
 
+const Settled = createContext(true);
+
+/** False while the surrounding panel is sliding: heavy work (PDF rendering) should wait. */
+export const usePanelSettled = () => useContext(Settled);
+
 /**
- * A side panel that slides between open, a slim rail (collapsed) and hidden by animating its
- * width. The content keeps its full width and is clipped, so it slides rather than squashes;
- * it is unmounted once hidden.
+ * A side panel that slides between open, a slim rail and hidden by animating its width.
+ * The frame is always in the layout, so every change animates from where it is (also when
+ * reversed halfway). The content keeps its full width and is clipped, so it slides rather
+ * than squashes, and it is unmounted once hidden.
  */
 export function SlidePanel({
   state,
   width,
-  rail,
+  rail = 0,
   side,
   children,
 }: {
   state: PanelState;
   width: number;
-  rail: number;
+  rail?: number;
   side: "left" | "right";
   children: ReactNode;
 }) {
   const target = state === "open" ? width : state === "rail" ? rail : 0;
   const [mounted, setMounted] = useState(state !== "hidden");
-  const [current, setCurrent] = useState(target);
+  const [moving, setMoving] = useState(false);
+  const last = useRef(target);
 
   useEffect(() => {
-    if (state !== "hidden") {
-      setMounted(true);
-      // Next frame, so a freshly mounted panel starts from its old width and animates.
-      const id = requestAnimationFrame(() => setCurrent(target));
-      return () => cancelAnimationFrame(id);
+    if (last.current === target) return;
+    last.current = target;
+    if (state !== "hidden") setMounted(true);
+    if (reducedMotion()) {
+      if (state === "hidden") setMounted(false);
+      return;
     }
-    setCurrent(0);
-    if (reducedMotion()) setMounted(false);
+    setMoving(true);
   }, [state, target]);
+  // Also true for the render in which the target changes, before the effect above has run.
+  const animating = moving || last.current !== target;
 
-  if (!mounted) return null;
   return (
     <div
       className={clsx(
-        "flex h-full shrink-0 overflow-hidden border-line transition-[width] duration-200 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
-        side === "left" ? "border-r" : "justify-end border-l",
+        "flex h-full shrink-0 overflow-hidden transition-[width] duration-[280ms] ease-out-soft motion-reduce:transition-none",
+        side === "right" && "justify-end",
+        // The edge line belongs to the frame, so the rail keeps it; gone once fully hidden.
+        (state !== "hidden" || animating) && (side === "left" ? "border-r border-line" : "border-l border-line"),
+        animating && "will-change-[width]",
       )}
-      style={{ width: current }}
+      style={{ width: target }}
       onTransitionEnd={(e) => {
-        if (e.target === e.currentTarget && e.propertyName === "width" && state === "hidden") {
-          setMounted(false);
-        }
+        if (e.target !== e.currentTarget || e.propertyName !== "width") return;
+        setMoving(false);
+        if (state === "hidden") setMounted(false);
       }}
     >
-      <div className="h-full shrink-0" style={{ width }}>
-        {children}
-      </div>
+      {mounted && (
+        <div
+          className={clsx(
+            "h-full shrink-0 transition-opacity duration-200",
+            state === "hidden" && "opacity-0",
+          )}
+          style={{ width }}
+        >
+          <Settled.Provider value={!animating}>{children}</Settled.Provider>
+        </div>
+      )}
     </div>
   );
 }

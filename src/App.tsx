@@ -1,15 +1,17 @@
-import { lazy, Suspense, useEffect, useMemo, type ComponentType } from "react";
-import { DetailsPane } from "./components/DetailsPane";
+import { lazy, Suspense, useEffect, useMemo, useRef, type ComponentType } from "react";
+import { DETAILS_WIDTH, DetailsPane } from "./components/DetailsPane";
 import { FileList, type Fetcher } from "./components/FileList";
+import { Mark } from "./components/Mark";
 import { Onboarding } from "./components/Onboarding";
 import { ScanBanner } from "./components/ScanBanner";
 import { SearchBar } from "./components/SearchBar";
-import { Sidebar } from "./components/Sidebar";
+import { Sidebar, SIDEBAR_RAIL, SIDEBAR_WIDTH } from "./components/Sidebar";
 import { SlidePanel } from "./components/SlidePanel";
 import { StatusBar } from "./components/StatusBar";
 import { Toasts } from "./components/Toasts";
 import { api, type SortKey, type Tag, type ViewFilter } from "./lib/api";
 import { FILE_KINDS } from "./lib/fileKinds";
+import { hideSplash } from "./lib/splash";
 import { useDebounced } from "./lib/useDebounced";
 import { useApplyTheme } from "./lib/useTheme";
 import { useIndex, wireIndexEvents } from "./stores";
@@ -49,7 +51,7 @@ function viewConfig(view: View, tags: Tag[]): ViewConfig {
       };
     case "recent":
       return {
-        title: "Modified in the last 30 days",
+        title: "Changed in the last 30 days",
         // Rounded to the hour so the query (and its cache key) is stable between renders.
         filter: { modifiedAfter: Math.floor((Date.now() - 30 * DAY) / HOUR) * HOUR },
         emptyTitle: "Nothing changed recently",
@@ -105,7 +107,6 @@ export default function App() {
   useEffect(wireIndexEvents, []);
 
   const overview = useIndex((s) => s.overview);
-  const scanning = useIndex((s) => s.scanning);
   const revision = useIndex((s) => s.revision);
   const tags = useIndex((s) => s.tags);
   const view = useUi((s) => s.view);
@@ -158,22 +159,55 @@ export default function App() {
     };
   }, [text, config, view.type, userSort]);
 
-  const firstRun = overview !== null && overview.lastScanAt === null && !scanning;
-  const hasDetails = !firstRun && view.type !== "settings";
+  // First run: the welcome screens replace the app until the first scan is under way.
+  const error = useIndex((s) => s.error);
+  const onboarding = useUi((s) => s.onboarding);
+  const setOnboarding = useUi((s) => s.setOnboarding);
+  const decided = useRef(false);
+  useEffect(() => {
+    if (overview === null || decided.current) return;
+    decided.current = true;
+    if (overview.lastScanAt === null && !overview.scanning) setOnboarding(true);
+  }, [overview, setOnboarding]);
+
+  // The splash stays up until there is something real to show.
+  useEffect(() => {
+    if (overview !== null || error) hideSplash();
+  }, [overview, error]);
+
+  // The saved theme also colours the native title bar (a no-op when nothing changed).
+  useEffect(() => {
+    api.setTheme(useUi.getState().theme).catch(() => {});
+  }, []);
+
+  if (overview === null) return error ? <StartupError message={error} /> : null;
+  if (onboarding) {
+    return (
+      <>
+        <Onboarding />
+        <Toasts />
+      </>
+    );
+  }
+
+  const hasDetails = view.type !== "settings";
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col animate-fade">
       <div className="flex min-h-0 flex-1">
-        <SlidePanel side="left" width={224} rail={48} state={sidebarOpen ? "open" : "rail"}>
+        <SlidePanel
+          side="left"
+          width={SIDEBAR_WIDTH}
+          rail={SIDEBAR_RAIL}
+          state={sidebarOpen ? "open" : "rail"}
+        >
           <Sidebar />
         </SlidePanel>
-        <main className="flex min-w-0 flex-1 flex-col">
+        <main className="flex min-w-0 flex-1 flex-col bg-paper">
           <SearchBar detailsToggle={hasDetails} />
           <ScanBanner />
           <section className="min-h-0 flex-1">
-            {overview === null ? null : firstRun ? (
-              <Onboarding />
-            ) : list ? (
+            {list ? (
               <FileList
                 fetcher={list.fetcher}
                 fetchKey={list.key}
@@ -193,12 +227,34 @@ export default function App() {
             ) : null}
           </section>
         </main>
-        <SlidePanel side="right" width={320} rail={0} state={hasDetails && detailsOpen ? "open" : "hidden"}>
+        <SlidePanel side="right" width={DETAILS_WIDTH} state={hasDetails && detailsOpen ? "open" : "hidden"}>
           <DetailsPane />
         </SlidePanel>
       </div>
       <StatusBar />
       <Toasts />
+    </div>
+  );
+}
+
+/** The index couldn't be read at startup (e.g. the database is locked or damaged). */
+function StartupError({ message }: { message: string }) {
+  const refresh = useIndex((s) => s.refresh);
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-8 text-center animate-fade">
+      <Mark className="size-10" />
+      <h1 className="mt-5 font-display text-[20px] font-semibold text-ink">Paperlight couldn't open its index</h1>
+      <p className="mt-1.5 max-w-md text-[13px] leading-relaxed text-graphite">{message}</p>
+      <button
+        type="button"
+        onClick={() => {
+          useIndex.setState({ error: null });
+          refresh();
+        }}
+        className="mt-6 h-9 rounded-md bg-ink px-4 text-[13px] font-medium text-on-ink hover:opacity-90"
+      >
+        Try again
+      </button>
     </div>
   );
 }

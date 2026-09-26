@@ -3,11 +3,12 @@ import clsx from "clsx";
 import { Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type FileRow } from "../lib/api";
-import { FILE_KINDS } from "../lib/fileKinds";
 import { formatRelative } from "../lib/format";
 import { useDebounced } from "../lib/useDebounced";
 import { useApplyTheme } from "../lib/useTheme";
+import { FileIcon } from "./FileIcon";
 import { Mark } from "./Mark";
+import { Kbd } from "./SearchBar";
 
 const LIMIT = 7;
 
@@ -106,11 +107,14 @@ export function QuickSearch() {
     }
   };
 
+  const heading =
+    idle === "opened" ? "Recently opened" : idle === "changed" ? "Recently changed" : rows.length ? "Best matches" : "";
+
   return (
     <div className="h-screen">
       <div className="flex h-full flex-col overflow-hidden bg-paper">
-        <label className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-4">
-          <Search className="size-[18px] text-pencil" strokeWidth={1.8} />
+        <label className="flex h-[58px] shrink-0 items-center gap-3 border-b border-line px-5">
+          <Search className="size-5 text-pencil" strokeWidth={1.8} />
           <input
             ref={inputRef}
             autoFocus
@@ -119,56 +123,55 @@ export function QuickSearch() {
             onKeyDown={onKeyDown}
             placeholder="Find any document…"
             spellCheck={false}
-            className="h-full flex-1 bg-transparent text-[16px] text-ink outline-none placeholder:text-pencil focus-visible:outline-none"
+            className="h-full flex-1 bg-transparent font-display text-[17px] text-ink outline-none placeholder:text-pencil focus-visible:outline-none"
           />
-          <Mark className="size-5 opacity-80" />
+          <Mark className="size-5" />
         </label>
 
-        <div className="px-4 pb-1 pt-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-pencil">
-          {idle === "opened"
-            ? "Recently opened"
-            : idle === "changed"
-              ? "Recently changed"
-              : rows.length
-                ? "Best matches"
-                : ""}
-        </div>
-        <ul className="min-h-0 flex-1 overflow-hidden">
+        <div className="px-5 pb-1 pt-3 text-[11.5px] font-semibold text-pencil">{heading}</div>
+        <ul className="min-h-0 flex-1 overflow-hidden px-2">
           {rows.map((row, i) => (
             <li
               key={row.id}
               onMouseMove={() => setSelected(i)}
               onClick={() => run(row, false)}
               className={clsx(
-                "relative flex h-[46px] cursor-default items-center gap-3 px-4",
-                i === selected ? "bg-lamp-wash" : "",
+                "flex h-[48px] cursor-default items-center gap-3 rounded-md px-3",
+                i === selected && "bg-selected",
               )}
             >
-              {i === selected && <span className="absolute inset-y-0 left-0 w-[3px] bg-lamp" />}
-              <span className="flex w-11 shrink-0 items-center gap-1.5">
-                <span className={clsx("h-4 w-[3px] rounded-full", FILE_KINDS[row.kind]?.swatch)} />
-                <span className="font-mono text-[10.5px] uppercase text-graphite">{row.ext.slice(0, 4)}</span>
-              </span>
+              <FileIcon kind={row.kind} ext={row.ext} size={28} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13.5px] font-medium leading-5 text-ink">{row.name}</span>
-                <span className="block truncate text-[11px] leading-4 text-pencil">{row.dir}</span>
+                <span className="block truncate text-[12px] leading-4 text-pencil">{row.dir}</span>
               </span>
-              <span className="shrink-0 text-[11.5px] text-graphite">{formatRelative(row.modifiedAt)}</span>
+              <span className="shrink-0 text-[12px] text-graphite">{formatRelative(row.modifiedAt)}</span>
             </li>
           ))}
           {!rows.length && query && (
-            <li className="px-4 py-6 text-[13px] text-graphite">No documents match “{query}”.</li>
+            <li className="px-3 py-6 text-[13px] text-graphite">No documents match “{query}”.</li>
           )}
         </ul>
 
-        {error && <div className="px-4 pb-1 text-[12px] text-danger">{error}</div>}
-        <div className="flex shrink-0 items-center gap-4 border-t border-line bg-paper-2 px-4 py-2 font-mono text-[10.5px] text-pencil">
-          <span>↵ open</span>
-          <span>ctrl ↵ show in folder</span>
-          <span>⇧ ↵ open Paperlight</span>
-          <span className="ml-auto">esc close</span>
+        {error && <div className="px-5 pb-1 text-[12px] text-danger">{error}</div>}
+        <div className="flex shrink-0 items-center gap-4 border-t border-line bg-paper-2 px-5 py-2 text-[12px] text-pencil">
+          <Hint keys="↵">open</Hint>
+          <Hint keys="Ctrl ↵">show in folder</Hint>
+          <Hint keys="Shift ↵">open Paperlight</Hint>
+          <span className="ml-auto">
+            <Hint keys="Esc">close</Hint>
+          </span>
         </div>
       </div>
     </div>
+  );
+}
+
+function Hint({ keys, children }: { keys: string; children: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <Kbd className="h-[18px] px-1 text-[10.5px]">{keys}</Kbd>
+      {children}
+    </span>
   );
 }
