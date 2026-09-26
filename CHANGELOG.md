@@ -3,7 +3,19 @@
 All notable changes to Paperlight are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.0.0] - 2026-09-26
+
+First release. Paperlight indexes every PDF, Word, Excel and PowerPoint file on the chosen
+drives, keeps the index current with a live watcher, and searches names, folders and the text
+inside documents, from the app or from any app with Alt+Space. Everything below, milestones 0
+to 8, is included.
+
+### Release
+- Windows installer (NSIS, per user, no admin rights): `Paperlight_1.0.0_x64-setup.exe`,
+  4.7 MB.
+- README with screenshots of the release build on a folder of made-up sample documents.
+- `PAPERLIGHT_DATA_DIR` keeps a separate index (demos, screenshots, testing).
+- Measured with the release build: Rust core 6 MB private memory, 0 ms CPU while idle.
 
 ### Added: Milestone 8, settings and insights
 - Settings (sidebar footer): add, pause or remove locations (with document counts),
