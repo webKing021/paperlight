@@ -21,6 +21,14 @@ pub fn run() {
             indexer::seed_defaults(&db)?;
             app.manage(AppState::new(db));
             indexer::sync_on_launch_if_stale(app.handle())?;
+            let indexed =
+                db::roots::get_setting(&app.state::<AppState>().db.reader(), "last_scan_at")?
+                    .is_some();
+            if indexed {
+                if let Err(e) = indexer::watcher::restart(app.handle()) {
+                    eprintln!("paperlight: could not start watcher: {e}");
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

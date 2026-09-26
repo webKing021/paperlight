@@ -20,6 +20,14 @@ export interface Overview {
   roots: Root[];
   lastScanAt: number | null;
   scanning: boolean;
+  /** Folders watched live, or null when not watching. */
+  watching: number | null;
+}
+
+export interface IndexChange {
+  added: number;
+  updated: number;
+  removed: number;
 }
 
 export interface FileRow {
@@ -105,6 +113,8 @@ export const events = {
     listen<ScanProgress>("scan-progress", (e) => cb(e.payload)),
   onScanFinished: (cb: (s: ScanSummary) => void): Promise<UnlistenFn> =>
     listen<ScanSummary>("scan-finished", (e) => cb(e.payload)),
+  onIndexChanged: (cb: (change: IndexChange) => void): Promise<UnlistenFn> =>
+    listen<IndexChange>("index-changed", (e) => cb(e.payload)),
   onScanError: (cb: (message: string) => void): Promise<UnlistenFn> =>
     listen<string>("scan-error", (e) => cb(e.payload)),
 };

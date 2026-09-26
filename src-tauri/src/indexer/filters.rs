@@ -1,5 +1,7 @@
 //! What counts as a document, and which folders are never worth walking.
 
+use std::path::Path;
+
 /// Indexed extensions and the document kind each one maps to.
 const EXTENSIONS: &[(&str, &str)] = &[
     ("pdf", "pdf"),
@@ -106,6 +108,43 @@ impl Exclusions {
                     && path.as_bytes()[prefix.len()] == b'\\')
         })
     }
+
+    /// True if a folder between `root` and `path` is excluded. Folders *above* the root are
+    /// never considered: a location the user chose explicitly is always honoured. The last
+    /// component of `path` is not checked either, since it may be a file.
+    pub fn is_excluded_below(&self, root: &str, path: &Path) -> bool {
+        let root = root.trim_end_matches('\\');
+        let full = path.to_string_lossy();
+        if full.len() <= root.len() || !full.is_char_boundary(root.len()) {
+            return false;
+        }
+        let mut current = full[..root.len()].to_string();
+        let parts: Vec<&str> = full[root.len()..]
+            .split('\\')
+            .filter(|p| !p.is_empty())
+            .collect();
+        for name in &parts[..parts.len().saturating_sub(1)] {
+            current.push('\\');
+            current.push_str(name);
+            if self.is_excluded_dir(&current, name) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+/// True for names that are clearly some other kind of file (`.tmp`, `.log`, `.jpg`…), used to
+/// drop irrelevant file-system events early. Folder names like `v1.2` are not matched.
+pub fn is_other_file(name: &str) -> bool {
+    match name.rsplit_once('.') {
+        Some((stem, ext)) if !stem.is_empty() && (1..=5).contains(&ext.len()) => {
+            ext.chars().all(|c| c.is_ascii_alphanumeric())
+                && ext.chars().any(|c| c.is_ascii_alphabetic())
+                && kind_for_ext(&ext.to_ascii_lowercase()).is_none()
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -147,5 +186,38 @@ mod tests {
         assert!(ex.is_excluded_dir("D:\\Archive\\Old", "Old"));
         assert!(ex.is_excluded_dir("d:\\archive\\old\\2019", "2019"));
         assert!(!ex.is_excluded_dir("D:\\Archive\\Older", "Older"));
+    }
+
+    #[test]
+    fn checks_folders_between_root_and_file_only() {
+        let ex = Exclusions::new(DEFAULT_EXCLUSIONS);
+        let below = |root: &str, p: &str| ex.is_excluded_below(root, Path::new(p));
+        assert!(below(r"C:\", r"C:\Users\me\AppData\Local\x.pdf"));
+        assert!(below(r"D:\", r"D:\web\node_modules\a\b.pdf"));
+        assert!(below(r"C:\", r"C:\Windows\x.pdf"));
+        assert!(!below(r"D:\", r"D:\Work\.hidden-name.pdf"));
+        assert!(!below(r"D:\", r"D:\Work\Report.pdf"));
+        // A location the user picked inside an excluded or hidden folder is still honoured.
+        assert!(!below(
+            r"C:\Users\me\AppData\Notes",
+            r"C:\Users\me\AppData\Notes\a.pdf"
+        ));
+        assert!(!below(
+            r"C:\tmp\.cache\docs",
+            r"C:\tmp\.cache\docs\Work\a.pdf"
+        ));
+        assert!(below(
+            r"C:\tmp\.cache\docs",
+            r"C:\tmp\.cache\docs\.git\a.pdf"
+        ));
+    }
+
+    #[test]
+    fn recognises_other_file_types() {
+        assert!(is_other_file("cache.tmp"));
+        assert!(is_other_file("photo.JPG"));
+        assert!(!is_other_file("Report.pdf"));
+        assert!(!is_other_file("Release v1.2"));
+        assert!(!is_other_file("Folder"));
     }
 }

@@ -5,6 +5,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added: Milestone 3, live watching
+- Index follows the disk in real time: new, changed, renamed, moved and deleted documents
+  appear within about a second, with no rescans.
+- Planned watches: drive roots and folders containing excluded children (e.g. a user profile
+  with AppData) are watched shallowly; everything else gets one recursive watch. Windows,
+  Program Files and AppData produce no events at all.
+- Early filtering of irrelevant events (.tmp, .log, images…) and batching (300 ms quiet,
+  at most every 2 s), applied in one transaction on a background-priority thread.
+- Identity-preserving updates: renames, moves between folders (in any event order), folder
+  renames and Office's "safe save" keep the same row, so favourites, history and tags
+  survive.
+- Folders moved or copied in are indexed at once; newly created top-level folders get their
+  own watch; lost events (buffer overflow) trigger a quiet background re-sync.
+- Exclusions now apply only below a location, so a folder you add explicitly is always
+  honoured, even inside a hidden or excluded folder.
+- Status bar shows "Live · watching for changes".
+- Measured: 0 ms CPU while idle, about 36 MB RAM for the core process.
+
 ### Changed: brand identity
 - New mark: geometric "P", with an ink stem and a lamp-amber half-disc bowl; new app icons.
 - Warm paper and ink palette with one lamp-amber accent; warm charcoal dark theme.

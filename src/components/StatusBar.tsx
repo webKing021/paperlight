@@ -31,9 +31,12 @@ export function StatusBar() {
   } else if (scanning) {
     dot = "bg-lamp animate-pulse";
     text = background ? "Syncing in the background…" : "Indexing…";
+  } else if (overview?.watching) {
+    dot = "bg-ok";
+    text = "Live · watching for changes";
   } else if (overview?.lastScanAt) {
     dot = "bg-ok";
-    text = `Up to date · updated ${formatRelative(overview.lastScanAt)}`;
+    text = `Up to date · synced ${formatRelative(overview.lastScanAt)}`;
   }
 
   return (
