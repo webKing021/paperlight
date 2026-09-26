@@ -1,6 +1,7 @@
 mod commands;
 mod content;
 mod db;
+mod dupes;
 mod error;
 mod indexer;
 mod search;
@@ -79,6 +80,10 @@ pub fn run() {
             commands::set_autostart,
             commands::hide_quick,
             commands::show_main,
+            commands::get_settings,
+            commands::reset_index,
+            commands::storage_insights,
+            commands::find_duplicates,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Paperlight");

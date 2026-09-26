@@ -5,6 +5,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added: Milestone 8, settings and insights
+- Settings (sidebar footer): add, pause or remove locations (with document counts),
+  manage excluded folders (folder names or full paths, typed or picked), theme, start with
+  Windows (kept in step with the tray check), the quick-search hotkey in use, Rescan now,
+  Reset index (with confirmation; locations, exclusions and tag names are kept) and the
+  index size on disk. The details panel is hidden on this page.
+- Exclude folder… in a document's right-click menu and in the details panel: pick any
+  folder level between the document and its location (e.g. `D:\DevTools` rather than
+  `D:\DevTools\BuildTools\Licenses\1033`). Its documents leave the index at once (no rescan),
+  the watcher is re-planned, and removing the exclusion in Settings brings them back.
+- Duplicates view: documents are grouped by exact size (index lookup), look-alikes are
+  compared by their first 64 KB, and only files that still match are hashed in full with
+  blake3, at background priority and only when the view is opened. Hashes are stored and
+  cleared when a file's size or date changes, so later checks read nothing from disk.
+  Sets show where the copies differ, with Open / Show in folder. Nothing is ever deleted.
+- Storage view: documents, size on disk and index size; count, size and share per type;
+  the largest documents.
+- Settings, Duplicates and Storage are separate chunks loaded on first visit (2–10 KB).
+- Database migration v4 (hash column, size and hash indexes). The write-ahead log is
+  truncated on start and capped at 1 MB.
+- Fixed: a path re-attached to a location with a changed size kept its old text.
+- Measured on the development laptop (debug build): first duplicate check hashed 112
+  candidates (584 MB) in about 5 s, finding 55 sets; repeat checks are instant; idle CPU
+  0 ms over 15 s; Rust core 7 MB private memory; index 5.6 MB for 365 documents.
+
 ### Added: Milestone 7, always available
 - Global quick search: Alt+Space (falls back to Ctrl+Shift+Space or Ctrl+Alt+P if taken)
   opens a small launcher from any app. Recently opened (or changed) files appear

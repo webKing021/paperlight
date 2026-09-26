@@ -3,12 +3,13 @@
 use std::sync::atomic::Ordering;
 
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::db::files::{self, ListQuery, Page, Stats};
+use crate::db::files::{self, FileRow, KindUsage, ListQuery, Page, Stats};
 use crate::db::now_ms;
 use crate::db::roots::{self, Root};
 use crate::db::tags::{self, Tag};
+use crate::dupes::{self, DupGroup};
 use crate::error::{AppError, AppResult};
 use crate::indexer;
 use crate::indexer::scanner::ScanMode;
@@ -113,11 +114,26 @@ pub fn list_exclusions(state: State<'_, AppState>) -> AppResult<Vec<String>> {
     roots::list_exclusions(&state.db.reader())
 }
 
+/// Adds an exclusion and drops the documents it now covers at once. Returns how many.
 #[tauri::command]
-pub fn add_exclusion(app: AppHandle, state: State<'_, AppState>, pattern: String) -> AppResult<()> {
+pub fn add_exclusion(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    pattern: String,
+) -> AppResult<usize> {
     roots::add_exclusion(&state.db.writer(), &pattern)?;
+    let removed = indexer::purge_excluded(&state.db)?;
     watcher::refresh(&app);
-    Ok(())
+    if removed > 0 {
+        let _ = app.emit(
+            "index-changed",
+            &watcher::Applied {
+                removed: removed as u64,
+                ..Default::default()
+            },
+        );
+    }
+    Ok(removed)
 }
 
 #[tauri::command]
@@ -233,4 +249,91 @@ pub fn hide_quick(app: AppHandle) {
 #[tauri::command]
 pub fn show_main(app: AppHandle) {
     shell::focus_main(&app);
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RootInfo {
+    #[serde(flatten)]
+    pub root: Root,
+    /// Documents indexed in this location.
+    pub count: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsInfo {
+    pub roots: Vec<RootInfo>,
+    pub exclusions: Vec<String>,
+    /// Bytes the index takes on disk.
+    pub index_bytes: u64,
+    pub hotkey: Option<String>,
+    pub autostart: bool,
+}
+
+#[tauri::command]
+pub fn get_settings(app: AppHandle, state: State<'_, AppState>) -> AppResult<SettingsInfo> {
+    let conn = state.db.reader();
+    let counts = files::count_by_root(&conn)?;
+    let roots = roots::list_roots(&conn)?
+        .into_iter()
+        .map(|root| RootInfo {
+            count: counts.get(&root.id).copied().unwrap_or(0),
+            root,
+        })
+        .collect();
+    Ok(SettingsInfo {
+        roots,
+        exclusions: roots::list_exclusions(&conn)?,
+        index_bytes: state.db.size_on_disk(),
+        hotkey: shell::hotkey(&app),
+        autostart: shell::autostart_enabled(&app),
+    })
+}
+
+/// Empties the index and starts a fresh scan. Files on disk are not touched.
+#[tauri::command]
+pub fn reset_index(app: AppHandle, state: State<'_, AppState>) -> AppResult<()> {
+    if state.scanning.load(Ordering::SeqCst) {
+        return Err(AppError::msg(
+            "A scan is running. Stop it or wait for it to finish, then try again.",
+        ));
+    }
+    files::reset_all(&mut state.db.writer())?;
+    let _ = app.emit("index-changed", &watcher::Applied::default());
+    indexer::spawn_scan(app, ScanMode::Foreground);
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageInsights {
+    pub by_kind: Vec<KindUsage>,
+    pub largest: Vec<FileRow>,
+    pub index_bytes: u64,
+}
+
+#[tauri::command]
+pub fn storage_insights(state: State<'_, AppState>) -> AppResult<StorageInsights> {
+    let conn = state.db.reader();
+    Ok(StorageInsights {
+        by_kind: files::usage_by_kind(&conn)?,
+        largest: files::largest(&conn, 12)?,
+        index_bytes: state.db.size_on_disk(),
+    })
+}
+
+/// Finds identical documents. Reads only files that share a size with another one, on a
+/// background-priority worker; progress arrives as `dupes-progress` events.
+#[tauri::command]
+pub async fn find_duplicates(app: AppHandle) -> AppResult<Vec<DupGroup>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _one_at_a_time = state.dupes.lock().unwrap_or_else(|e| e.into_inner());
+        dupes::find(&state.db, |p| {
+            let _ = app.emit("dupes-progress", p);
+        })
+    })
+    .await
+    .map_err(|e| AppError::msg(e.to_string()))?
 }
