@@ -3,7 +3,9 @@
 All notable changes to Paperlight are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-26
+
+A tidier home, panels that get out of the way, and control over what gets indexed.
 
 ### Added: open source community
 - CONTRIBUTING (setup, layout, checks, principles), Code of Conduct, security policy, issue
