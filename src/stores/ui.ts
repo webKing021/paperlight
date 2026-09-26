@@ -11,6 +11,12 @@ export type View =
   | { type: "duplicates" }
   | { type: "kind"; kind: FileKind };
 
+export interface Toast {
+  id: number;
+  text: string;
+  tone: "info" | "error";
+}
+
 interface UiState {
   theme: ThemeMode;
   view: View;
@@ -19,7 +25,12 @@ interface UiState {
   cycleTheme: () => void;
   setView: (view: View) => void;
   setQuery: (query: string) => void;
+  toasts: Toast[];
+  toast: (text: string, tone?: Toast["tone"]) => void;
+  dismissToast: (id: number) => void;
 }
+
+let toastId = 0;
 
 const THEME_KEY = "paperlight.theme";
 
@@ -52,6 +63,13 @@ export const useUi = create<UiState>((set, get) => ({
   },
   setView: (view) => set({ view }),
   setQuery: (query) => set({ query }),
+  toasts: [],
+  toast: (text, tone = "info") => {
+    const id = ++toastId;
+    set((s) => ({ toasts: [...s.toasts.slice(-2), { id, text, tone }] }));
+    setTimeout(() => get().dismissToast(id), tone === "error" ? 5000 : 2500);
+  },
+  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));
 
 export function sameView(a: View, b: View): boolean {

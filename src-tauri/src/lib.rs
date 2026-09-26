@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod error;
 mod indexer;
+mod search;
 mod state;
 
 use tauri::Manager;
@@ -25,6 +26,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_overview,
             commands::list_files,
+            commands::search_files,
+            commands::open_file,
+            commands::reveal_file,
             commands::add_root,
             commands::remove_root,
             commands::set_root_enabled,

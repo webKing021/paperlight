@@ -2,7 +2,9 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use rusqlite::{params, params_from_iter, types::Value, Connection, Transaction};
+use rusqlite::{
+    params, params_from_iter, types::Value, Connection, OptionalExtension, Row, Transaction,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppResult;
@@ -199,6 +201,31 @@ pub struct FileRow {
     pub created_at: Option<i64>,
     pub modified_at: Option<i64>,
     pub is_favourite: bool,
+    pub open_count: i64,
+    pub last_opened_at: Option<i64>,
+}
+
+/// Columns read by [`FileRow::from_row`], for queries that alias `files` as `f`.
+pub const FILE_COLUMNS: &str = "f.id, f.path, f.name, f.ext, f.kind, f.dir, f.size, f.created_at,
+     f.modified_at, f.is_favourite, f.open_count, f.last_opened_at";
+
+impl FileRow {
+    pub fn from_row(r: &Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: r.get(0)?,
+            path: r.get(1)?,
+            name: r.get(2)?,
+            ext: r.get(3)?,
+            kind: r.get(4)?,
+            dir: r.get(5)?,
+            size: r.get(6)?,
+            created_at: r.get(7)?,
+            modified_at: r.get(8)?,
+            is_favourite: r.get(9)?,
+            open_count: r.get(10)?,
+            last_opened_at: r.get(11)?,
+        })
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -241,25 +268,12 @@ pub fn list_files(conn: &Connection, q: &ListQuery) -> AppResult<Page> {
     let limit = q.limit.unwrap_or(200).clamp(1, 1000);
     let offset = q.offset.max(0);
     let sql = format!(
-        "SELECT id, path, name, ext, kind, dir, size, created_at, modified_at, is_favourite
-         FROM files {where_clause} ORDER BY {order} LIMIT {limit} OFFSET {offset}"
+        "SELECT {FILE_COLUMNS} FROM files f {where_clause}
+         ORDER BY {order} LIMIT {limit} OFFSET {offset}"
     );
     let mut stmt = conn.prepare(&sql)?;
     let items = stmt
-        .query_map(params_from_iter(args.iter()), |r| {
-            Ok(FileRow {
-                id: r.get(0)?,
-                path: r.get(1)?,
-                name: r.get(2)?,
-                ext: r.get(3)?,
-                kind: r.get(4)?,
-                dir: r.get(5)?,
-                size: r.get(6)?,
-                created_at: r.get(7)?,
-                modified_at: r.get(8)?,
-                is_favourite: r.get(9)?,
-            })
-        })?
+        .query_map(params_from_iter(args.iter()), FileRow::from_row)?
         .collect::<Result<_, _>>()?;
 
     Ok(Page {
@@ -267,4 +281,19 @@ pub fn list_files(conn: &Connection, q: &ListQuery) -> AppResult<Page> {
         offset,
         items,
     })
+}
+
+pub fn path_of(conn: &Connection, id: i64) -> AppResult<Option<String>> {
+    Ok(conn
+        .query_row("SELECT path FROM files WHERE id = ?1", [id], |r| r.get(0))
+        .optional()?)
+}
+
+/// Remembers that a file was opened from Paperlight (feeds ranking and "Recently opened").
+pub fn record_open(conn: &Connection, id: i64, now: i64) -> AppResult<()> {
+    conn.execute(
+        "UPDATE files SET open_count = open_count + 1, last_opened_at = ?2 WHERE id = ?1",
+        params![id, now],
+    )?;
+    Ok(())
 }

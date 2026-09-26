@@ -1,69 +1,91 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { api, type FileRow, type ListQuery } from "../lib/api";
+import { Copy, ExternalLink, FolderOpen } from "lucide-react";
+import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { copyPath, openFile, revealFile } from "../lib/actions";
+import type { FileRow, Page } from "../lib/api";
 import { FILE_KINDS } from "../lib/fileKinds";
 import { formatDateTime, formatRelative, formatSize } from "../lib/format";
 
 const PAGE_SIZE = 200;
 const ROW_HEIGHT = 52;
+const GRID = "grid-cols-[minmax(0,1fr)_120px_76px_76px]";
+
+export type Fetcher = (offset: number, limit: number) => Promise<Page>;
 
 /**
  * Loads a (possibly huge) result set page by page, only fetching pages that scroll into view.
  * Old pages stay visible until the first page of a reload arrives, so live updates don't flicker.
  */
-function usePagedFiles(query: ListQuery, revision: number) {
+function usePagedFiles(fetcher: Fetcher, key: string, revision: number) {
   const [total, setTotal] = useState<number | null>(null);
   const pages = useRef(new Map<number, FileRow[]>());
   const loading = useRef(new Set<number>());
   const generation = useRef(0);
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
   const [, rerender] = useReducer((x: number) => x + 1, 0);
-  const key = JSON.stringify(query);
 
   useEffect(() => {
     const gen = ++generation.current;
-    api.listFiles({ ...query, offset: 0, limit: PAGE_SIZE }).then((page) => {
-      if (gen !== generation.current) return;
-      pages.current = new Map([[0, page.items]]);
-      loading.current = new Set();
-      setTotal(page.total);
-      rerender();
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetcherRef.current(0, PAGE_SIZE).then(
+      (page) => {
+        if (gen !== generation.current) return;
+        pages.current = new Map([[0, page.items]]);
+        loading.current = new Set();
+        setTotal(page.total);
+        rerender();
+      },
+      () => gen === generation.current && setTotal(0),
+    );
   }, [key, revision]);
 
-  const ensure = useCallback(
-    (index: number) => {
-      const pageNo = Math.floor(index / PAGE_SIZE);
-      if (pages.current.has(pageNo) || loading.current.has(pageNo)) return;
-      loading.current.add(pageNo);
-      const gen = generation.current;
-      api.listFiles({ ...query, offset: pageNo * PAGE_SIZE, limit: PAGE_SIZE }).then((page) => {
-        if (gen !== generation.current) return;
-        pages.current.set(pageNo, page.items);
-        rerender();
-      });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [key],
-  );
+  const ensure = useCallback((index: number) => {
+    const pageNo = Math.floor(index / PAGE_SIZE);
+    if (pages.current.has(pageNo) || loading.current.has(pageNo)) return;
+    loading.current.add(pageNo);
+    const gen = generation.current;
+    fetcherRef.current(pageNo * PAGE_SIZE, PAGE_SIZE).then((page) => {
+      if (gen !== generation.current) return;
+      pages.current.set(pageNo, page.items);
+      rerender();
+    });
+  }, []);
 
-  const getRow = (index: number) =>
-    pages.current.get(Math.floor(index / PAGE_SIZE))?.[index % PAGE_SIZE];
+  const getRow = useCallback(
+    (index: number) => pages.current.get(Math.floor(index / PAGE_SIZE))?.[index % PAGE_SIZE],
+    [],
+  );
 
   return { total, getRow, ensure };
 }
 
 interface FileListProps {
-  query: ListQuery;
+  fetcher: Fetcher;
+  /** Changes whenever the query changes; resets paging and selection. */
+  fetchKey: string;
   revision: number;
+  title: string;
   emptyTitle: string;
   emptyHint: string;
+  /** Terms to highlight in names and folders. */
+  highlight?: string[];
+  /** Select the first row automatically (search results: Enter opens the best match). */
+  autoSelect?: boolean;
 }
 
-export function FileList({ query, revision, emptyTitle, emptyHint }: FileListProps) {
-  const { total, getRow, ensure } = usePagedFiles(query, revision);
-  const [selected, setSelected] = useState<number | null>(null);
+interface MenuState {
+  x: number;
+  y: number;
+  row: FileRow;
+}
+
+export function FileList(props: FileListProps) {
+  const { fetcher, fetchKey, revision, title, emptyTitle, emptyHint, highlight, autoSelect } =
+    props;
+  const { total, getRow, ensure } = usePagedFiles(fetcher, fetchKey, revision);
+  const [selected, setSelected] = useState(-1);
+  const [menu, setMenu] = useState<MenuState | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
@@ -78,9 +100,50 @@ export function FileList({ query, revision, emptyTitle, emptyHint }: FileListPro
     for (const item of items) ensure(item.index);
   }, [items, ensure]);
 
+  useEffect(() => {
+    setSelected(autoSelect ? 0 : -1);
+    virtualizer.scrollToOffset(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchKey]);
+
+  // Keyboard: ↑/↓ PgUp/PgDn move, Enter opens, Ctrl+Enter shows in folder, Ctrl+Shift+C copies.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!total || menu) return;
+      const move = (to: number) => {
+        e.preventDefault();
+        const next = Math.max(0, Math.min(total - 1, to));
+        setSelected(next);
+        virtualizer.scrollToIndex(next, { align: "auto" });
+      };
+      switch (e.key) {
+        case "ArrowDown":
+          return move(selected + 1);
+        case "ArrowUp":
+          return move(selected - 1);
+        case "PageDown":
+          return move(selected + 10);
+        case "PageUp":
+          return move(selected - 10);
+      }
+      const row = selected >= 0 ? getRow(selected) : undefined;
+      if (!row) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (e.ctrlKey) revealFile(row);
+        else openFile(row);
+      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        copyPath(row);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [total, selected, menu, getRow, virtualizer]);
+
   if (total === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
+      <div className="flex h-full flex-col items-center justify-center gap-1 px-8 text-center">
         <p className="text-[14px] font-medium">{emptyTitle}</p>
         <p className="max-w-xs text-[12.5px] text-muted">{emptyHint}</p>
       </div>
@@ -89,12 +152,25 @@ export function FileList({ query, revision, emptyTitle, emptyHint }: FileListPro
 
   return (
     <div className="flex h-full flex-col">
-      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_120px_80px] gap-4 border-b border-line px-5 py-2 text-[11px] font-semibold uppercase tracking-wider text-faint">
-        <span>Name {total !== null && <span className="ml-1 font-normal normal-case tracking-normal">· {total.toLocaleString()}</span>}</span>
+      <div
+        className={clsx(
+          "grid shrink-0 gap-4 border-b border-line px-5 py-2 text-[11px] font-semibold uppercase tracking-wider text-faint",
+          GRID,
+        )}
+      >
+        <span>
+          {title}
+          {total !== null && (
+            <span className="ml-1.5 font-normal normal-case tracking-normal">
+              · {total.toLocaleString()}
+            </span>
+          )}
+        </span>
         <span>Modified</span>
         <span className="text-right">Size</span>
+        <span />
       </div>
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" onScroll={() => setMenu(null)}>
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
           {items.map((item) => {
             const row = getRow(item.index);
@@ -105,7 +181,16 @@ export function FileList({ query, revision, emptyTitle, emptyHint }: FileListPro
                 style={{ height: item.size, transform: `translateY(${item.start}px)` }}
               >
                 {row ? (
-                  <Row row={row} selected={selected === row.id} onSelect={() => setSelected(row.id)} />
+                  <Row
+                    row={row}
+                    selected={selected === item.index}
+                    highlight={highlight}
+                    onSelect={() => setSelected(item.index)}
+                    onMenu={(x, y) => {
+                      setSelected(item.index);
+                      setMenu({ x, y, row });
+                    }}
+                  />
                 ) : (
                   <div className="mx-3 my-3 h-6 animate-pulse rounded bg-surface-2" />
                 )}
@@ -114,18 +199,33 @@ export function FileList({ query, revision, emptyTitle, emptyHint }: FileListPro
           })}
         </div>
       </div>
+      {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
     </div>
   );
 }
 
-function Row({ row, selected, onSelect }: { row: FileRow; selected: boolean; onSelect: () => void }) {
+interface RowProps {
+  row: FileRow;
+  selected: boolean;
+  highlight?: string[];
+  onSelect: () => void;
+  onMenu: (x: number, y: number) => void;
+}
+
+function Row({ row, selected, highlight, onSelect, onMenu }: RowProps) {
   const kind = FILE_KINDS[row.kind];
   return (
     <div
       onClick={onSelect}
+      onDoubleClick={() => openFile(row)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onMenu(e.clientX, e.clientY);
+      }}
       title={row.path}
       className={clsx(
-        "grid h-full cursor-default grid-cols-[minmax(0,1fr)_120px_80px] items-center gap-4 rounded-lg px-3",
+        "group grid h-full cursor-default items-center gap-4 rounded-lg px-3",
+        GRID,
         selected ? "bg-accent-soft" : "hover:bg-hover",
       )}
     >
@@ -139,14 +239,147 @@ function Row({ row, selected, onSelect }: { row: FileRow; selected: boolean; onS
           {row.ext.slice(0, 4)}
         </span>
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-medium">{row.name}</div>
-          <div className="truncate text-[11.5px] text-faint">{row.dir}</div>
+          <div className="truncate text-[13px] font-medium">{mark(row.name, highlight)}</div>
+          <div className="truncate text-[11.5px] text-faint">{mark(row.dir, highlight)}</div>
         </div>
       </div>
       <span className="text-[12px] text-muted" title={formatDateTime(row.modifiedAt)}>
         {formatRelative(row.modifiedAt)}
       </span>
       <span className="text-right text-[12px] tabular-nums text-muted">{formatSize(row.size)}</span>
+      <div
+        className={clsx(
+          "flex justify-end gap-0.5",
+          selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+        )}
+      >
+        <IconButton title="Show in folder (Ctrl+Enter)" onClick={() => revealFile(row)}>
+          <FolderOpen className="size-3.5" />
+        </IconButton>
+        <IconButton title="Copy path (Ctrl+Shift+C)" onClick={() => copyPath(row)}>
+          <Copy className="size-3.5" />
+        </IconButton>
+      </div>
     </div>
   );
+}
+
+function IconButton({
+  title,
+  onClick,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      onDoubleClick={(e) => e.stopPropagation()}
+      className="flex size-7 items-center justify-center rounded-md text-muted hover:bg-surface hover:text-fg"
+    >
+      {children}
+    </button>
+  );
+}
+
+function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }) {
+  useEffect(() => {
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent && e.key !== "Escape") return;
+      onClose();
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", close);
+    window.addEventListener("blur", close);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", close);
+      window.removeEventListener("blur", close);
+    };
+  }, [onClose]);
+
+  const items: { label: string; hint: string; icon: ReactNode; run: () => void }[] = [
+    { label: "Open", hint: "Enter", icon: <ExternalLink className="size-3.5" />, run: () => openFile(menu.row) },
+    {
+      label: "Show in folder",
+      hint: "Ctrl+Enter",
+      icon: <FolderOpen className="size-3.5" />,
+      run: () => revealFile(menu.row),
+    },
+    {
+      label: "Copy path",
+      hint: "Ctrl+Shift+C",
+      icon: <Copy className="size-3.5" />,
+      run: () => copyPath(menu.row),
+    },
+  ];
+
+  // Keep the menu inside the window.
+  const x = Math.min(menu.x, window.innerWidth - 220);
+  const y = Math.min(menu.y, window.innerHeight - 120);
+
+  return (
+    <div
+      className="fixed z-50 w-52 rounded-lg border border-line bg-surface p-1 shadow-xl"
+      style={{ left: x, top: y }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {items.map((item) => (
+        <button
+          type="button"
+          key={item.label}
+          onClick={() => {
+            item.run();
+            onClose();
+          }}
+          className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12.5px] hover:bg-hover"
+        >
+          <span className="text-muted">{item.icon}</span>
+          {item.label}
+          <span className="ml-auto text-[10.5px] text-faint">{item.hint}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Wraps case-insensitive occurrences of `terms` in <mark>. */
+function mark(text: string, terms?: string[]): ReactNode {
+  const needles = terms?.filter((t) => t.length > 0);
+  if (!needles?.length) return text;
+  const lower = text.toLowerCase();
+  const hits: [number, number][] = [];
+  for (const t of needles) {
+    let from = 0;
+    for (;;) {
+      const at = lower.indexOf(t, from);
+      if (at < 0) break;
+      hits.push([at, at + t.length]);
+      from = at + t.length;
+    }
+  }
+  if (!hits.length) return text;
+  hits.sort((a, b) => a[0] - b[0]);
+  const out: ReactNode[] = [];
+  let pos = 0;
+  for (const [start, end] of hits) {
+    if (end <= pos) continue;
+    const s = Math.max(start, pos);
+    if (s > pos) out.push(text.slice(pos, s));
+    out.push(
+      <mark key={s} className="rounded-sm bg-amber-300/50 text-inherit dark:bg-amber-400/25">
+        {text.slice(s, end)}
+      </mark>,
+    );
+    pos = end;
+  }
+  if (pos < text.length) out.push(text.slice(pos));
+  return out;
 }
