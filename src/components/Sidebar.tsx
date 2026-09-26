@@ -1,15 +1,10 @@
 import clsx from "clsx";
-import {
-  Clock,
-  Copy,
-  FileStack,
-  History,
-  Star,
-  type LucideIcon,
-} from "lucide-react";
-import { FILE_KINDS, KIND_DOT, KIND_ORDER } from "../lib/fileKinds";
+import { Clock, Copy, Files, History, Star, type LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
+import { FILE_KINDS, KIND_ORDER } from "../lib/fileKinds";
 import { useIndex } from "../stores";
 import { sameView, useUi, type View } from "../stores/ui";
+import { Mark } from "./Mark";
 
 interface NavItem {
   label: string;
@@ -18,20 +13,20 @@ interface NavItem {
 }
 
 const LIBRARY: NavItem[] = [
-  { label: "All documents", icon: FileStack, view: { type: "all" } },
+  { label: "All documents", icon: Files, view: { type: "all" } },
   { label: "Recent", icon: Clock, view: { type: "recent" } },
   { label: "Recently opened", icon: History, view: { type: "opened" } },
   { label: "Favourites", icon: Star, view: { type: "favourites" } },
   { label: "Duplicates", icon: Copy, view: { type: "duplicates" } },
 ];
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="mb-5">
-      <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-faint">
+    <div className="mb-6">
+      <div className="px-4 pb-1.5 font-mono text-[10.5px] uppercase tracking-[0.08em] text-pencil">
         {title}
       </div>
-      <div className="flex flex-col gap-0.5">{children}</div>
+      <div className="flex flex-col">{children}</div>
     </div>
   );
 }
@@ -44,7 +39,7 @@ function NavButton({
 }: {
   active: boolean;
   onClick: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
   count?: number;
 }) {
   return (
@@ -52,15 +47,16 @@ function NavButton({
       type="button"
       onClick={onClick}
       className={clsx(
-        "flex h-8 items-center gap-2.5 rounded-md px-3 text-left text-[13px] transition-colors",
-        active
-          ? "bg-accent-soft font-medium text-accent"
-          : "text-muted hover:bg-hover hover:text-fg",
+        "relative flex h-8 items-center gap-2.5 px-4 text-left text-[13px] transition-colors",
+        active ? "font-medium text-ink" : "text-graphite hover:bg-hover hover:text-ink",
       )}
     >
+      {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-lamp" />}
       {children}
       {count !== undefined && (
-        <span className="ml-auto text-xs tabular-nums text-faint">{count.toLocaleString()}</span>
+        <span className="ml-auto font-mono text-[11px] tabular-nums text-pencil">
+          {count.toLocaleString()}
+        </span>
       )}
     </button>
   );
@@ -72,13 +68,13 @@ export function Sidebar() {
   const stats = useIndex((s) => s.overview?.stats);
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-line bg-surface">
-      <div className="flex h-14 items-center gap-2.5 px-5">
-        <img src="/paperlight.svg" alt="" className="size-6" />
-        <span className="text-[15px] font-semibold tracking-tight">Paperlight</span>
+    <aside className="flex w-56 shrink-0 flex-col border-r border-line bg-paper-2">
+      <div className="flex h-14 items-center gap-2 px-4">
+        <Mark className="size-[22px]" />
+        <span className="text-[15px] font-semibold tracking-[-0.01em]">paperlight</span>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 pt-2">
+      <nav className="flex-1 overflow-y-auto pt-3">
         <Section title="Library">
           {LIBRARY.map(({ label, icon: Icon, view: target }) => (
             <NavButton
@@ -87,7 +83,7 @@ export function Sidebar() {
               onClick={() => setView(target)}
               count={target.type === "all" ? stats?.total : undefined}
             >
-              <Icon className="size-4" strokeWidth={1.75} />
+              <Icon className="size-[15px]" strokeWidth={1.6} />
               {label}
             </NavButton>
           ))}
@@ -103,7 +99,7 @@ export function Sidebar() {
                 onClick={() => setView(target)}
                 count={stats ? (stats.byKind[kind] ?? 0) : undefined}
               >
-                <span className={clsx("mx-1 size-2 rounded-full", KIND_DOT[kind])} />
+                <span className={clsx("mx-[3px] size-[9px] rounded-[2px]", FILE_KINDS[kind].swatch)} />
                 {FILE_KINDS[kind].label}
               </NavButton>
             );
@@ -111,8 +107,8 @@ export function Sidebar() {
         </Section>
 
         <Section title="Tags">
-          <p className="px-3 text-xs leading-relaxed text-faint">
-            Tag documents to group them here — your files stay where they are.
+          <p className="px-4 text-[12px] leading-relaxed text-pencil">
+            Label documents to group them here. Files stay where they are.
           </p>
         </Section>
       </nav>

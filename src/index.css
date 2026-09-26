@@ -1,64 +1,99 @@
 @import "tailwindcss";
-@import "@fontsource-variable/inter";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ---------- Design tokens ---------- */
+/*
+ * Paperlight palette — a reading lamp over paper.
+ * Warm paper neutrals, ink for text and primary actions, and a single accent ("lamp") used
+ * only for the mark, selection and highlights — never for text.
+ */
 :root {
-  --bg: #f7f7f8;
-  --surface: #ffffff;
-  --surface-2: #f1f1f3;
-  --hover: #ececef;
-  --line: #e4e4e7;
-  --fg: #18181b;
-  --muted: #71717a;
-  --faint: #a1a1aa;
-  --accent: #4f46e5;
-  --accent-soft: #eef2ff;
-  --accent-fg: #ffffff;
+  --paper: #f5f3ee;
+  --paper-2: #efece5;
+  --sheet: #fbfaf7;
+  --hover: #e9e5dc;
+  --line: #e0dbd0;
+  --line-strong: #cdc7ba;
+  --ink: #1c1b18;
+  --ink-2: #4a4740;
+  --graphite: #6f6a60;
+  --pencil: #9d978b;
+  --lamp: #e3a23b;
+  --lamp-wash: #f4e6c8;
+  --on-ink: #f5f3ee;
+
+  --pdf: #b4493b;
+  --word: #3d5a87;
+  --excel: #43744b;
+  --slides: #b06f24;
+  --ok: #5a8a55;
+  --danger: #b4493b;
   color-scheme: light;
 }
 
 .dark {
-  --bg: #0e0e11;
-  --surface: #16161a;
-  --surface-2: #1c1c21;
-  --hover: #24242a;
-  --line: #2a2a31;
-  --fg: #f4f4f5;
-  --muted: #a1a1aa;
-  --faint: #71717a;
-  --accent: #818cf8;
-  --accent-soft: #1e1b4b;
-  --accent-fg: #0e0e11;
+  --paper: #141311;
+  --paper-2: #1a1917;
+  --sheet: #1e1d1a;
+  --hover: #292724;
+  --line: #2e2c28;
+  --line-strong: #3d3a35;
+  --ink: #ece8df;
+  --ink-2: #c9c4b8;
+  --graphite: #a39e92;
+  --pencil: #6f6b62;
+  --lamp: #e8ae4b;
+  --lamp-wash: #3a2f1c;
+  --on-ink: #141311;
+
+  --pdf: #e07a6a;
+  --word: #85a2cf;
+  --excel: #82b48a;
+  --slides: #dca25c;
+  --ok: #82b48a;
+  --danger: #e07a6a;
   color-scheme: dark;
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-sheet: var(--sheet);
   --color-hover: var(--hover);
   --color-line: var(--line);
-  --color-fg: var(--fg);
-  --color-muted: var(--muted);
-  --color-faint: var(--faint);
-  --color-accent: var(--accent);
-  --color-accent-soft: var(--accent-soft);
-  --color-accent-fg: var(--accent-fg);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-graphite: var(--graphite);
+  --color-pencil: var(--pencil);
+  --color-lamp: var(--lamp);
+  --color-lamp-wash: var(--lamp-wash);
+  --color-on-ink: var(--on-ink);
+  --color-pdf: var(--pdf);
+  --color-word: var(--word);
+  --color-excel: var(--excel);
+  --color-slides: var(--slides);
+  --color-ok: var(--ok);
+  --color-danger: var(--danger);
 }
 
-@keyframes scan {
+@keyframes runner {
   0% {
     transform: translateX(-100%);
   }
   100% {
-    transform: translateX(300%);
+    transform: translateX(400%);
   }
 }
 
-/* ---------- Base ---------- */
 html,
 body,
 #root {
@@ -67,11 +102,13 @@ body,
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--paper);
+  color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 13.5px;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" 0;
   user-select: none;
   overflow: hidden;
 }
@@ -81,16 +118,25 @@ textarea {
   user-select: text;
 }
 
+::selection {
+  background: var(--lamp-wash);
+}
+
+:focus-visible {
+  outline: 1.5px solid var(--ink);
+  outline-offset: 1px;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--line);
+  background: var(--line-strong);
   border-radius: 999px;
   border: 3px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background-color: var(--faint);
+  background-color: var(--pencil);
 }

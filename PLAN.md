@@ -59,8 +59,24 @@
 - **Quick launcher**: global hotkey opens a compact floating search window; `Enter` opens the file and the window hides.
 - **Search syntax (optional power-user)**: `type:pdf`, `in:D:\Work`, `modified:<7d`, `tag:tax`, `"exact phrase"`.
 - **First-run onboarding**: choose drives/folders to watch (defaults: all fixed drives), see live scan progress.
-- **Visual style**: neutral greys, one accent colour, Inter font, 8-pt spacing grid, subtle motion,
-  file-type colour chips (PDF red, Word blue, Excel green, PowerPoint orange).
+- **Visual identity** — see §3a.
+
+## 3a. Brand & visual identity
+
+**Idea:** a reading lamp over a desk of papers — calm, archival, precise. References: library
+card catalogues, printed index tabs, Braun-style product labelling. Deliberately *not* the
+generic "AI app" look (no purple/indigo gradients, sparkles, pastel icon badges, glows or pills).
+
+| Element | Decision |
+|---|---|
+| Mark | Geometric **P**: ink stem + gap + solid lamp-amber half-disc (the bowl = a pool of light). Two flat shapes, legible at 16 px. App icon = mark on an ink tile. |
+| Wordmark | `paperlight`, lower-case, IBM Plex Sans SemiBold, −1 % tracking |
+| Neutrals (light) | paper `#F5F3EE`, sheet `#FBFAF7`, line `#E0DBD0`, ink `#1C1B18`, graphite `#6F6A60`, pencil `#9D978B` |
+| Neutrals (dark) | warm charcoal `#141311` / `#1A1917`, text `#ECE8DF` — never blue-black |
+| Accent | **lamp** `#E3A23B` — only for the mark, selection bar, highlights, progress. Never text. |
+| File types | label-ink tabs: PDF brick `#B4493B`, Word slate `#3D5A87`, Excel moss `#43744B`, PowerPoint ochre `#B06F24` |
+| Type | IBM Plex Sans (UI) + IBM Plex Mono (extensions, counts, shortcuts, paths in progress, status line). Bundled locally. |
+| Shape | 4–6 px radii, hairline rules, almost no shadow; selection = lamp wash + 3 px amber edge; primary button = solid ink |
 
 ## 4. Architecture
 

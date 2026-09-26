@@ -23,31 +23,31 @@ export function StatusBar() {
   const stats = overview?.stats;
   const roots = overview?.roots.filter((r) => r.enabled).length ?? 0;
 
-  let dot = "bg-faint";
+  let dot = "bg-pencil";
   let text = "Not indexed yet";
   if (error) {
-    dot = "bg-red-500";
+    dot = "bg-danger";
     text = `Indexing failed: ${error}`;
   } else if (scanning) {
-    dot = "bg-amber-500 animate-pulse";
+    dot = "bg-lamp animate-pulse";
     text = background ? "Syncing in the background…" : "Indexing…";
   } else if (overview?.lastScanAt) {
-    dot = "bg-emerald-500";
+    dot = "bg-ok";
     text = `Up to date · updated ${formatRelative(overview.lastScanAt)}`;
   }
 
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-2 border-t border-line bg-surface px-4 text-[11.5px] text-muted">
+    <footer className="flex h-7 shrink-0 items-center gap-2 border-t border-line bg-paper-2 px-4 font-mono text-[10.5px] text-graphite">
       <span className={clsx("size-1.5 rounded-full", dot)} />
       <span className="truncate">{text}</span>
       {stats && stats.total > 0 && (
-        <span className="text-faint">
+        <span className="text-pencil">
           · {stats.total.toLocaleString()} documents · {formatSize(stats.totalSize)} · {roots}{" "}
           {roots === 1 ? "location" : "locations"}
         </span>
       )}
       {summary && summary.errors > 0 && !scanning && (
-        <span className="text-faint" title="Folders Windows did not allow Paperlight to read">
+        <span className="text-pencil" title="Folders Windows did not allow Paperlight to read">
           · {summary.errors.toLocaleString()} skipped
         </span>
       )}
@@ -57,7 +57,7 @@ export function StatusBar() {
           onClick={startScan}
           disabled={scanning}
           title="Rescan now"
-          className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover hover:text-fg disabled:opacity-40"
+          className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover hover:text-ink disabled:opacity-40"
         >
           <RefreshCw className={clsx("size-3", scanning && "animate-spin")} />
           Rescan
