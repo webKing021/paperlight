@@ -86,6 +86,17 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX files_opened ON files(last_opened_at DESC) WHERE last_opened_at IS NOT NULL;
     CREATE INDEX files_favourite ON files(is_favourite) WHERE is_favourite = 1;
     "#,
+    // v3: text inside documents (at most ~32 K characters each), read in the background
+    r#"
+    CREATE VIRTUAL TABLE content_fts USING fts5(
+        body,
+        tokenize = 'unicode61 remove_diacritics 2'
+    );
+    CREATE TRIGGER files_content_ad AFTER DELETE ON files BEGIN
+        DELETE FROM content_fts WHERE rowid = old.id;
+    END;
+    CREATE INDEX files_content_pending ON files(content_status) WHERE content_status = 0;
+    "#,
 ];
 
 pub fn migrate(conn: &mut Connection) -> AppResult<()> {

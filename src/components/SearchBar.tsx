@@ -36,7 +36,7 @@ export function SearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-          placeholder="Find a document by name or folder"
+          placeholder="Find a document by name, folder or words inside it"
           spellCheck={false}
           className="h-full flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-pencil focus-visible:outline-none"
         />

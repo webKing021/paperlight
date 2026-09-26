@@ -49,6 +49,11 @@ export function StatusBar() {
           {roots === 1 ? "location" : "locations"}
         </span>
       )}
+      {overview && overview.contentPending > 0 && (
+        <span className="text-pencil" title="Reading the text inside documents so you can search it">
+          · reading text of {overview.contentPending.toLocaleString()} documents
+        </span>
+      )}
       {summary && summary.errors > 0 && !scanning && (
         <span className="text-pencil" title="Folders Windows did not allow Paperlight to read">
           · {summary.errors.toLocaleString()} skipped

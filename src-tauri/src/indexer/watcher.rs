@@ -174,6 +174,7 @@ fn run(
             Ok(applied) => {
                 if applied.changed() {
                     let _ = app.emit("index-changed", &applied);
+                    crate::content::wake(&app);
                 }
                 // A watched folder itself was renamed/moved: its watch would now report stale
                 // paths, so plan everything again.

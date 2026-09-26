@@ -5,6 +5,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added: Milestone 5, search inside documents
+- Text of PDF, Word (docx), PowerPoint (pptx), Excel (xlsx/xlsm/xlsb/xls/ods), OpenDocument
+  (odt/odp), CSV and RTF files is read in the background and becomes searchable, with the
+  matching passage shown under each result.
+- One background-priority reader thread that sleeps when idle and reads newest documents
+  first. Each file is read on a helper thread with a panic guard and a 20 s timeout. Files
+  over 40 MB are skipped, at most ~32 K characters are kept per document, and zip parts are
+  capped at 16 MB (zip-bomb guard).
+- Text is re-read only when a file's size or date changes (not on rename or move).
+- Name matches still rank above text matches; words are prefix-matched ("invoic" finds
+  "invoices").
+- Status bar shows "reading text of N documents" while the backlog is processed.
+- Measured on the development laptop (debug build): 368 documents read in 26 s, index about
+  9 MB, about 69 MB private memory afterwards.
+- Release builds now unwind on panic (needed to contain parser crashes).
+- Database migration v3 (content_fts, delete trigger, pending index).
+
 ### Added: Milestone 4, smart views
 - Favourites: star any document (hover star, right-click, or Ctrl+D); lamp-amber star on
   rows; Favourites view with count.

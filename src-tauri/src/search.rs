@@ -26,6 +26,9 @@ const FUZZY_WHEN_FEWER_THAN: usize = 5;
 const FUZZY_MIN_SIMILARITY: f64 = 0.75;
 /// Every exact match outranks every typo-tolerant guess.
 const EXACT_BASE: f64 = 50.0;
+/// Matches found only in a document's text rank below name matches but above typo guesses.
+const CONTENT_BASE: f64 = 25.0;
+const MAX_CONTENT: i64 = 300;
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +70,25 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> AppResult<Page> {
         if let Some(score) = exact_score(&row, &terms) {
             let score = EXACT_BASE + score + boost(&row, now);
             results.insert(row.id, Scored { row, score });
+        }
+    }
+
+    // Text inside documents (words of 2+ letters, prefix-matched: "invoic" finds "invoices").
+    if terms.iter().all(|t| t.chars().count() >= 2) {
+        let hits = content_candidates(conn, &terms, &filter_sql, &filter_args)?;
+        let n = hits.len().max(1) as f64;
+        for (rank, (mut row, snippet)) in hits.into_iter().enumerate() {
+            match results.get_mut(&row.id) {
+                Some(hit) => {
+                    hit.score += 10.0;
+                    hit.row.snippet = Some(snippet);
+                }
+                None => {
+                    let score = CONTENT_BASE + 10.0 * (1.0 - rank as f64 / n) + boost(&row, now);
+                    row.snippet = Some(snippet);
+                    results.insert(row.id, Scored { row, score });
+                }
+            }
         }
     }
 
@@ -150,6 +172,33 @@ fn exact_candidates(
     };
     args.extend_from_slice(filter_args);
     query_rows(conn, &sql, &args)
+}
+
+/// Documents whose text contains every term, best first, with a short marked passage.
+fn content_candidates(
+    conn: &Connection,
+    terms: &[String],
+    filter_sql: &str,
+    filter_args: &[Value],
+) -> AppResult<Vec<(FileRow, String)>> {
+    let expr = terms
+        .iter()
+        .map(|t| format!("{}*", fts_phrase(t)))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    let mut args = vec![Value::Text(expr)];
+    args.extend_from_slice(filter_args);
+    let sql = format!(
+        "SELECT {FILE_COLUMNS}, snippet(content_fts, 0, char(2), char(3), '…', 14)
+         FROM content_fts JOIN files f ON f.id = content_fts.rowid
+         WHERE content_fts MATCH ?{filter_sql}
+         ORDER BY bm25(content_fts) LIMIT {MAX_CONTENT}"
+    );
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let rows = stmt.query_map(params_from_iter(args.iter()), |r| {
+        Ok((FileRow::from_row(r)?, r.get::<_, String>(12)?))
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 fn fuzzy_candidates(
@@ -446,6 +495,39 @@ mod tests {
         ]);
         assert!(find(&db, "invoice").is_empty());
         assert_eq!(find(&db, "resume"), ["Resume.pdf"]);
+    }
+
+    #[test]
+    fn finds_text_inside_documents_with_a_snippet() {
+        let (_t, db) = sample();
+        {
+            let conn = db.writer();
+            let id: i64 = conn
+                .query_row("SELECT id FROM files WHERE name = 'Resume.pdf'", [], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            conn.execute(
+                "INSERT INTO content_fts (rowid, body) VALUES (?1, ?2)",
+                rusqlite::params![
+                    id,
+                    "Experienced engineer. Built a quarterly forecasting model."
+                ],
+            )
+            .unwrap();
+        }
+        let page = search(
+            &db.reader(),
+            &SearchQuery {
+                text: "quarter forecast".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(page.items.len(), 1);
+        assert_eq!(page.items[0].name, "Resume.pdf");
+        let snippet = page.items[0].snippet.as_deref().unwrap();
+        assert!(snippet.contains("\u{2}quarterly\u{3}"), "{snippet}");
     }
 
     #[test]

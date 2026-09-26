@@ -26,6 +26,8 @@ import { TagDot } from "./TagDot";
 
 const PAGE_SIZE = 200;
 const ROW_HEIGHT = 50;
+/** Search results have room for a line of matching text. */
+const SEARCH_ROW_HEIGHT = 68;
 const GRID = "grid-cols-[minmax(0,1fr)_112px_72px_92px]";
 
 export type Fetcher = (offset: number, limit: number) => Promise<Page>;
@@ -118,11 +120,12 @@ export function FileList(props: FileListProps) {
   const [selected, setSelected] = useState(-1);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rowHeight = highlight ? SEARCH_ROW_HEIGHT : ROW_HEIGHT;
 
   const virtualizer = useVirtualizer({
     count: total ?? 0,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: 12,
   });
   const items = virtualizer.getVirtualItems();
@@ -134,6 +137,7 @@ export function FileList(props: FileListProps) {
   useEffect(() => {
     setSelected(autoSelect ? 0 : -1);
     virtualizer.scrollToOffset(0);
+    virtualizer.measure();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchKey]);
 
@@ -142,10 +146,10 @@ export function FileList(props: FileListProps) {
     (row: FileRow) => {
       const box = scrollRef.current?.getBoundingClientRect();
       if (!box) return;
-      const top = selected * ROW_HEIGHT - (scrollRef.current?.scrollTop ?? 0);
-      setMenu({ x: box.left + 240, y: box.top + top + ROW_HEIGHT - 6, row });
+      const top = selected * rowHeight - (scrollRef.current?.scrollTop ?? 0);
+      setMenu({ x: box.left + 240, y: box.top + top + rowHeight - 6, row });
     },
-    [selected],
+    [selected, rowHeight],
   );
 
   // ↑/↓ PgUp/PgDn move · Enter open · Ctrl+Enter show in folder · Ctrl+Shift+C copy path ·
@@ -345,6 +349,9 @@ function Row({ row, rowTags, selected, highlight, onSelect, onMenu }: RowProps) 
             ))}
           </div>
           <div className="truncate text-[11.5px] leading-4 text-pencil">{mark(row.dir, highlight)}</div>
+          {row.snippet && (
+            <div className="mt-1 truncate text-[12px] leading-4 text-graphite">{snippet(row.snippet)}</div>
+          )}
         </div>
       </div>
       <span className="text-[12px] text-graphite" title={formatDateTime(row.modifiedAt)}>
@@ -517,6 +524,20 @@ function MenuItem({
       {hint && <span className="ml-auto font-mono text-[10px] text-pencil">{hint}</span>}
     </button>
   );
+}
+
+/** Renders a text passage whose matched words are wrapped in \u0002 … \u0003. */
+function snippet(text: string): ReactNode {
+  return text.split("\u0002").map((part, i) => {
+    if (i === 0) return part;
+    const [hit, rest = ""] = part.split("\u0003");
+    return (
+      <span key={i}>
+        <mark className="rounded-[2px] bg-lamp/35 text-ink">{hit}</mark>
+        {rest}
+      </span>
+    );
+  });
 }
 
 /** Wraps case-insensitive occurrences of `terms` in <mark>. */

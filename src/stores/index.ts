@@ -100,6 +100,11 @@ export function wireIndexEvents() {
   });
   // Live changes from the file watcher: refresh counts and visible lists.
   events.onIndexChanged(() => useIndex.getState().touched());
+  events.onContentProgress((pending) =>
+    useIndex.setState((s) =>
+      s.overview ? { overview: { ...s.overview, contentPending: pending } } : {},
+    ),
+  );
   events.onScanError((message) => {
     useIndex.setState({ scanning: false, background: false, progress: null, error: message });
     refresh();

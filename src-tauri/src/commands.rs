@@ -25,6 +25,8 @@ pub struct Overview {
     pub scanning: bool,
     /// Number of folders being watched live, or `None` if not watching.
     pub watching: Option<usize>,
+    /// Documents whose text is still waiting to be read.
+    pub content_pending: i64,
 }
 
 #[tauri::command]
@@ -36,6 +38,7 @@ pub fn get_overview(app: AppHandle, state: State<'_, AppState>) -> AppResult<Ove
         last_scan_at: roots::get_setting(&conn, "last_scan_at")?.and_then(|v| v.parse().ok()),
         scanning: state.scanning.load(Ordering::SeqCst),
         watching: watcher::watched_locations(&app),
+        content_pending: crate::content::pending_count(&conn)?,
     })
 }
 
