@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { DetailsPane } from "./components/DetailsPane";
 import { FileList, type Fetcher } from "./components/FileList";
 import { Onboarding } from "./components/Onboarding";
 import { ScanBanner } from "./components/ScanBanner";
@@ -96,6 +97,7 @@ export default function App() {
   const userSort = useUi((s) => s.sort);
   const setSort = useUi((s) => s.setSort);
   const rawQuery = useUi((s) => s.query);
+  const detailsOpen = useUi((s) => s.detailsOpen);
   const text = useDebounced(rawQuery.trim(), 90);
   const config = useMemo(() => viewConfig(view, tags), [view, tags]);
 
@@ -173,6 +175,7 @@ export default function App() {
             )}
           </section>
         </main>
+        {detailsOpen && !firstRun && <DetailsPane />}
       </div>
       <StatusBar />
       <Toasts />

@@ -57,6 +57,8 @@ pub fn run() {
             commands::update_tag,
             commands::delete_tag,
             commands::set_file_tag,
+            commands::file_details,
+            commands::preview_pdf,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Paperlight");

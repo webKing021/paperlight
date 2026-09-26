@@ -21,7 +21,7 @@ import type { FileRow, Page, SortKey, Tag } from "../lib/api";
 import { FILE_KINDS } from "../lib/fileKinds";
 import { formatDateTime, formatRelative, formatSize } from "../lib/format";
 import { useIndex } from "../stores";
-import type { Sort } from "../stores/ui";
+import { useUi, type Sort } from "../stores/ui";
 import { TagDot } from "./TagDot";
 
 const PAGE_SIZE = 200;
@@ -133,6 +133,11 @@ export function FileList(props: FileListProps) {
   useEffect(() => {
     for (const item of items) ensure(item.index);
   }, [items, ensure]);
+
+  // Tell the details panel which document is selected.
+  const setSelectedId = useUi((s) => s.setSelectedId);
+  const selectedRowId = selected >= 0 ? (getRow(selected)?.id ?? null) : null;
+  useEffect(() => setSelectedId(selectedRowId), [selectedRowId, setSelectedId]);
 
   useEffect(() => {
     setSelected(autoSelect ? 0 : -1);

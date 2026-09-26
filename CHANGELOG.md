@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added: Milestone 6, details and preview
+- Details panel (toggle with the header button or Ctrl+I; remembered): real first-page
+  preview for PDFs, a paper-style text card for Word / Excel / PowerPoint, and name,
+  favourite, Open / Show in folder / Copy path, folder, modified, created, open history,
+  one-click tag toggles and text-reading status.
+- pdf.js is loaded only when a PDF is first previewed (separate chunk). The parsed PDF is
+  released right after rendering, and PDFs over 30 MB are not previewed.
+- PDF bytes are served by id through the Rust core (no file-system access for the UI);
+  CSP allows only a same-origin worker for pdf.js.
+
 ### Added: Milestone 5, search inside documents
 - Text of PDF, Word (docx), PowerPoint (pptx), Excel (xlsx/xlsm/xlsb/xls/ods), OpenDocument
   (odt/odp), CSV and RTF files is read in the background and becomes searchable, with the
