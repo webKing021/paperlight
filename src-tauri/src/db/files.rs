@@ -96,7 +96,9 @@ pub fn insert_batch(
 pub fn update_batch(tx: &Transaction, now: i64, records: &[(i64, FileRecord)]) -> AppResult<()> {
     let mut stmt = tx.prepare_cached(
         "UPDATE files SET path = ?2, name = ?3, ext = ?4, kind = ?5, dir = ?6, size = ?7,
-                          created_at = ?8, modified_at = ?9, last_seen_at = ?10
+                          created_at = ?8, modified_at = ?9, last_seen_at = ?10,
+                          content_status = CASE WHEN size = ?7 AND modified_at IS ?9
+                                                THEN content_status ELSE 0 END
          WHERE id = ?1",
     )?;
     for (id, f) in records {
@@ -316,6 +318,10 @@ pub struct FileRow {
     pub last_opened_at: Option<i64>,
     /// Ids of the tags on this file.
     pub tags: Vec<i64>,
+    /// Matching passage from the document's text (search results only). Marked with
+    /// U+0002 … U+0003 around matched words.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snippet: Option<String>,
 }
 
 /// Columns read by [`FileRow::from_row`], for queries that alias `files` as `f`.
@@ -338,6 +344,7 @@ impl FileRow {
             open_count: r.get(10)?,
             last_opened_at: r.get(11)?,
             tags: Vec::new(),
+            snippet: None,
         })
     }
 }

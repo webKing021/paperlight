@@ -117,7 +117,7 @@ export default function App() {
         key: JSON.stringify(["search", text, filter]),
         title: view.type !== "all" && config.filter ? `Matches in ${config.title}` : "Best matches",
         emptyTitle: `No documents match “${text}”`,
-        emptyHint: "Try fewer or shorter words. Part of a name or a folder is enough.",
+        emptyHint: "Try fewer or shorter words. Part of a name, a folder or a phrase from inside the document is enough.",
         highlight: text.toLowerCase().split(/\s+/),
         autoSelect: true,
         sortable: false,

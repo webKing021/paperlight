@@ -90,6 +90,7 @@ pub fn spawn_scan(app: AppHandle, mode: ScanMode) -> bool {
             match result {
                 Ok(summary) => {
                     let _ = app.emit("scan-finished", &summary);
+                    crate::content::wake(&app);
                     // After the first complete scan, live watching takes over.
                     if !summary.cancelled && !watcher::is_running(&app) {
                         if let Err(e) = watcher::restart(&app) {

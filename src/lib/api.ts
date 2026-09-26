@@ -35,6 +35,8 @@ export interface Overview {
   scanning: boolean;
   /** Folders watched live, or null when not watching. */
   watching: number | null;
+  /** Documents whose text is still waiting to be read. */
+  contentPending: number;
 }
 
 export interface IndexChange {
@@ -57,6 +59,8 @@ export interface FileRow {
   openCount: number;
   lastOpenedAt: number | null;
   tags: number[];
+  /** Matching passage from the text (search only), words marked with \u0002 … \u0003. */
+  snippet?: string;
 }
 
 export interface Page {
@@ -142,6 +146,8 @@ export const events = {
     listen<ScanSummary>("scan-finished", (e) => cb(e.payload)),
   onIndexChanged: (cb: (change: IndexChange) => void): Promise<UnlistenFn> =>
     listen<IndexChange>("index-changed", (e) => cb(e.payload)),
+  onContentProgress: (cb: (pending: number) => void): Promise<UnlistenFn> =>
+    listen<{ pending: number }>("content-progress", (e) => cb(e.payload.pending)),
   onScanError: (cb: (message: string) => void): Promise<UnlistenFn> =>
     listen<string>("scan-error", (e) => cb(e.payload)),
 };
