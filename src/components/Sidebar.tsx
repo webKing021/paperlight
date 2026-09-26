@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import {
   Clock,
+  LayoutGrid,
+  PanelLeft,
   Copy,
   Files,
   HardDrive,
@@ -26,6 +28,7 @@ interface NavItem {
 }
 
 const LIBRARY: NavItem[] = [
+  { label: "Overview", icon: LayoutGrid, view: { type: "overview" } },
   { label: "All documents", icon: Files, view: { type: "all" }, count: (s) => s.total },
   { label: "Recent", icon: Clock, view: { type: "recent" } },
   { label: "Recently opened", icon: History, view: { type: "opened" }, count: (s) => s.opened },
@@ -33,6 +36,9 @@ const LIBRARY: NavItem[] = [
   { label: "Duplicates", icon: Copy, view: { type: "duplicates" } },
   { label: "Storage", icon: HardDrive, view: { type: "storage" } },
 ];
+
+/** Fades labels out while the sidebar is collapsed to a rail. */
+const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/side:opacity-0";
 
 function Section({
   title,
@@ -46,7 +52,9 @@ function Section({
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between px-4 pb-1.5">
-        <span className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-pencil">
+        <span
+          className={clsx("font-mono text-[10.5px] uppercase tracking-[0.08em] text-pencil", FADE)}
+        >
           {title}
         </span>
         {action}
@@ -62,7 +70,9 @@ function NavButton({
   onContextMenu,
   children,
   count,
+  title,
 }: {
+  title?: string;
   active: boolean;
   onClick: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -74,6 +84,7 @@ function NavButton({
       type="button"
       onClick={onClick}
       onContextMenu={onContextMenu}
+      title={title}
       className={clsx(
         "relative flex h-8 items-center gap-2.5 px-4 text-left text-[13px] transition-colors",
         active ? "font-medium text-ink" : "text-graphite hover:bg-hover hover:text-ink",
@@ -82,7 +93,7 @@ function NavButton({
       {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-lamp" />}
       {children}
       {count !== undefined && (
-        <span className="ml-auto font-mono text-[11px] tabular-nums text-pencil">
+        <span className={clsx("ml-auto font-mono text-[11px] tabular-nums text-pencil", FADE)}>
           {count.toLocaleString()}
         </span>
       )}
@@ -98,12 +109,32 @@ export function Sidebar() {
   const disabledFormats = useIndex((s) => s.overview?.disabledFormats);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
+  const open = useUi((s) => s.sidebarOpen);
+  const toggleSidebar = useUi((s) => s.toggleSidebar);
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-line bg-paper-2">
-      <div className="flex h-14 items-center gap-2 px-4">
-        <Mark className="size-[22px]" />
-        <span className="text-[15px] font-semibold tracking-[-0.01em]">paperlight</span>
+    <aside
+      data-collapsed={!open}
+      className="group/side flex h-full w-56 shrink-0 flex-col bg-paper-2"
+    >
+      <div className="flex h-14 shrink-0 items-center gap-2 px-2">
+        {open && (
+          <>
+            <Mark className="ml-2 size-[22px]" />
+            <span className="text-[15px] font-semibold tracking-[-0.01em]">paperlight</span>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          title={open ? "Collapse sidebar (Ctrl+B)" : "Expand sidebar (Ctrl+B)"}
+          className={clsx(
+            "flex size-8 items-center justify-center rounded-md text-graphite transition-colors hover:bg-hover hover:text-ink",
+            open && "ml-auto",
+          )}
+        >
+          <PanelLeft className="size-4" strokeWidth={1.6} />
+        </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto pt-3">
@@ -114,9 +145,10 @@ export function Sidebar() {
               active={sameView(view, target)}
               onClick={() => setView(target)}
               count={stats && count ? count(stats) : undefined}
+              title={open ? undefined : label}
             >
-              <Icon className="size-[15px]" strokeWidth={1.6} />
-              {label}
+              <Icon className="size-[15px] shrink-0" strokeWidth={1.6} />
+              <span className={clsx("truncate", FADE)}>{label}</span>
             </NavButton>
           ))}
         </Section>
@@ -130,9 +162,12 @@ export function Sidebar() {
                 active={sameView(view, target)}
                 onClick={() => setView(target)}
                 count={stats ? (stats.byKind[kind] ?? 0) : undefined}
+                title={open ? undefined : FILE_KINDS[kind].label}
               >
-                <span className={clsx("mx-[3px] size-[9px] rounded-[2px]", FILE_KINDS[kind].swatch)} />
-                {FILE_KINDS[kind].label}
+                <span
+                  className={clsx("mx-[3px] size-[9px] shrink-0 rounded-[2px]", FILE_KINDS[kind].swatch)}
+                />
+                <span className={FADE}>{FILE_KINDS[kind].label}</span>
               </NavButton>
             );
           })}
@@ -164,15 +199,16 @@ export function Sidebar() {
                   setEditing(tag.id);
                 }}
                 count={tag.count}
+                title={open ? undefined : tag.name}
               >
-                <TagDot color={tag.color} className="mx-[3px]" />
-                <span className="truncate">{tag.name}</span>
+                <TagDot color={tag.color} className="mx-[3px] shrink-0" />
+                <span className={clsx("truncate", FADE)}>{tag.name}</span>
               </NavButton>
             ),
           )}
           {creating && <NewTag onDone={() => setCreating(false)} />}
           {tags.length === 0 && !creating && (
-            <p className="px-4 text-[12px] leading-relaxed text-pencil">
+            <p className={clsx("px-4 text-[12px] leading-relaxed text-pencil", FADE)}>
               Right-click a document to tag it. Tags live in Paperlight; your files are never
               changed.
             </p>
@@ -183,9 +219,10 @@ export function Sidebar() {
         <NavButton
           active={view.type === "settings"}
           onClick={() => setView({ type: "settings" })}
+          title={open ? undefined : "Settings"}
         >
-          <Settings className="size-[15px]" strokeWidth={1.6} />
-          Settings
+          <Settings className="size-[15px] shrink-0" strokeWidth={1.6} />
+          <span className={FADE}>Settings</span>
         </NavButton>
       </div>
     </aside>
