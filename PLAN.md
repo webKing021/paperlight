@@ -118,8 +118,10 @@ Paths are stored normalised (case-preserved, compared case-insensitively on Wind
    that pairs rename events. Create → insert, modify → update metadata + queue re-extract,
    remove → delete row, rename/move → update path **keeping tags/favourites/history**.
 4. **Startup reconciliation** — changes made while Paperlight was closed are caught by a quick
-   incremental re-walk comparing `(size, modified_at)`; rows not seen are removed (moved files
-   are matched by size+name+mtime to preserve tags).
+   incremental re-walk comparing `(size, modified_at)` against an in-memory snapshot of the index;
+   only differences are written, rows not seen are removed (moved files are matched by
+   size+name+mtime to preserve tags). Runs only when the last sync is older than 12 h, in
+   background I/O mode (see §8a).
 5. **Content extraction** — background worker pool (`num_cpus/2`, low priority) drains a queue;
    skipped for files > 50 MB (configurable); results cached by `(size, mtime)` so a file is only
    re-read when it changes. Every extractor runs under `catch_unwind` + timeout so a corrupt
@@ -151,6 +153,20 @@ Paths are stored normalised (case-preserved, compared case-insensitively on Wind
 | Idle CPU while watching | ~0 % |
 | Idle RAM | < 150 MB |
 | Installer size | < 15 MB |
+
+## 8a. Efficiency principles (lightweight by design)
+
+Paperlight must feel invisible when you are not using it.
+
+| Principle | How |
+|---|---|
+| **Scan once, then listen** | One full scan on first run. After that, the file watcher (event-driven, zero polling) keeps the index current while the app runs (normally in the tray). |
+| **No needless rescans** | On launch, a quick sync runs only if the last one was > 12 h ago (configurable), and only after the window is up. Manual "Rescan" is always available. |
+| **Diff, don't rewrite** | A rescan compares each file's size + modified time with the index in memory and writes **only** new/changed/deleted rows. Unchanged laptop → ~0 DB writes. |
+| **Polite I/O** | Automatic scans run in Windows *background mode* (low CPU **and** disk priority) on a small thread pool (≤ 4 threads). User-started scans run at normal priority. |
+| **Metadata only by default** | The scanner never opens files; only directory listings + metadata of document files. Content extraction (M5) is a separate, throttled, cancellable queue that skips files > 50 MB and stores at most ~100 KB of text per document. |
+| **Small footprint** | Native WebView2 (no bundled Chromium), ~10 MB installer, SQLite page cache capped at 8 MB, `auto_vacuum = INCREMENTAL` so the DB shrinks after deletions. Index for ~20k documents ≈ 5–15 MB. |
+| **Idle = idle** | No timers or polling while idle; UI re-renders only on events. |
 
 ## 9. Security & privacy
 

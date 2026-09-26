@@ -2,15 +2,23 @@
 
 pub mod drives;
 pub mod filters;
+pub mod priority;
 pub mod scanner;
 
 use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::db::{roots, Db};
+use crate::db::{now_ms, roots, Db};
 use crate::error::AppResult;
 use crate::state::AppState;
+use scanner::ScanMode;
+
+/// Automatic sync on launch only happens when the index is older than this.
+const AUTO_SYNC_AFTER: Duration = Duration::from_secs(12 * 60 * 60);
+/// Let the window appear and settle before any automatic disk work starts.
+const AUTO_SYNC_DELAY: Duration = Duration::from_secs(5);
 
 /// First run: watch every fixed drive and install the default exclusions.
 pub fn seed_defaults(db: &Db) -> AppResult<()> {
@@ -29,6 +37,26 @@ pub fn seed_defaults(db: &Db) -> AppResult<()> {
     Ok(())
 }
 
+/// Called at startup. Syncs quietly in the background only if the index is stale; a fresh
+/// index is trusted as-is (the file watcher keeps it current while the app runs).
+pub fn sync_on_launch_if_stale(app: &AppHandle) -> AppResult<()> {
+    let state = app.state::<AppState>();
+    let last =
+        roots::get_setting(&state.db.reader(), "last_scan_at")?.and_then(|v| v.parse::<i64>().ok());
+    let Some(last) = last else {
+        return Ok(()); // never scanned: onboarding lets the user start the first scan
+    };
+    if now_ms() - last < AUTO_SYNC_AFTER.as_millis() as i64 {
+        return Ok(());
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(AUTO_SYNC_DELAY);
+        spawn_scan(app, ScanMode::Background);
+    });
+    Ok(())
+}
+
 /// Resets the `scanning` flag even if the scan thread panics.
 struct ScanGuard<'a>(&'a AppState);
 
@@ -38,8 +66,8 @@ impl Drop for ScanGuard<'_> {
     }
 }
 
-/// Starts a full scan on a background thread. Returns `false` if one is already running.
-pub fn spawn_scan(app: AppHandle) -> bool {
+/// Starts a sync on a background thread. Returns `false` if one is already running.
+pub fn spawn_scan(app: AppHandle, mode: ScanMode) -> bool {
     let state = app.state::<AppState>();
     if state.scanning.swap(true, Ordering::SeqCst) {
         return false;
@@ -52,12 +80,12 @@ pub fn spawn_scan(app: AppHandle) -> bool {
         .spawn(move || {
             let app = handle;
             let state = app.state::<AppState>();
-            let _guard = ScanGuard(&state);
-            let _ = app.emit("scan-started", ());
-            let result = scanner::scan(&state.db, &state.cancel, |p| {
+            let guard = ScanGuard(&state);
+            let _ = app.emit("scan-started", mode == ScanMode::Background);
+            let result = scanner::scan(&state.db, &state.cancel, mode, |p| {
                 let _ = app.emit("scan-progress", p);
             });
-            drop(_guard);
+            drop(guard);
             match result {
                 Ok(summary) => {
                     let _ = app.emit("scan-finished", &summary);
@@ -68,9 +96,7 @@ pub fn spawn_scan(app: AppHandle) -> bool {
             }
         });
     if spawned.is_err() {
-        app.state::<AppState>()
-            .scanning
-            .store(false, Ordering::SeqCst);
+        state.scanning.store(false, Ordering::SeqCst);
         return false;
     }
     true

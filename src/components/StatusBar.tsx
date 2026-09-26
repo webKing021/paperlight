@@ -7,15 +7,17 @@ import { useIndex } from "../stores";
 export function StatusBar() {
   const overview = useIndex((s) => s.overview);
   const scanning = useIndex((s) => s.scanning);
+  const background = useIndex((s) => s.background);
   const error = useIndex((s) => s.error);
   const summary = useIndex((s) => s.lastSummary);
   const startScan = useIndex((s) => s.startScan);
 
-  // Re-render every 30 s so "updated 2 min ago" stays truthful.
+  // Refresh "updated 2 min ago" when the window regains focus: no timers while idle.
   const [, tick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => tick((n) => n + 1), 30_000);
-    return () => clearInterval(id);
+    const onFocus = () => tick((n) => n + 1);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, []);
 
   const stats = overview?.stats;
@@ -28,7 +30,7 @@ export function StatusBar() {
     text = `Indexing failed: ${error}`;
   } else if (scanning) {
     dot = "bg-amber-500 animate-pulse";
-    text = "Indexing…";
+    text = background ? "Syncing in the background…" : "Indexing…";
   } else if (overview?.lastScanAt) {
     dot = "bg-emerald-500";
     text = `Up to date · updated ${formatRelative(overview.lastScanAt)}`;

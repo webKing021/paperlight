@@ -4,8 +4,10 @@ import { useIndex } from "../stores";
 export function ScanBanner() {
   const scanning = useIndex((s) => s.scanning);
   const progress = useIndex((s) => s.progress);
+  const background = useIndex((s) => s.background);
   const cancelScan = useIndex((s) => s.cancelScan);
-  if (!scanning) return null;
+  // Automatic syncs stay out of the way; the status bar mentions them.
+  if (!scanning || background) return null;
 
   return (
     <div className="relative shrink-0 overflow-hidden border-b border-line bg-accent-soft/60">

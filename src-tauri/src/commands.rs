@@ -9,6 +9,7 @@ use crate::db::files::{self, ListQuery, Page, Stats};
 use crate::db::roots::{self, Root};
 use crate::error::AppResult;
 use crate::indexer;
+use crate::indexer::scanner::ScanMode;
 use crate::state::AppState;
 
 #[derive(Serialize)]
@@ -66,10 +67,10 @@ pub fn remove_exclusion(state: State<'_, AppState>, pattern: String) -> AppResul
     roots::remove_exclusion(&state.db.writer(), &pattern)
 }
 
-/// Returns `false` if a scan is already running.
+/// A scan the user asked for runs at full speed. Returns `false` if one is already running.
 #[tauri::command]
 pub fn start_scan(app: AppHandle) -> bool {
-    indexer::spawn_scan(app)
+    indexer::spawn_scan(app, ScanMode::Foreground)
 }
 
 #[tauri::command]

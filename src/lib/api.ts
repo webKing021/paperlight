@@ -62,6 +62,8 @@ export interface ScanProgress {
 export interface ScanSummary {
   filesFound: number;
   dirsScanned: number;
+  added: number;
+  updated: number;
   removed: number;
   errors: number;
   durationMs: number;
@@ -83,7 +85,9 @@ export const api = {
 };
 
 export const events = {
-  onScanStarted: (cb: () => void): Promise<UnlistenFn> => listen("scan-started", () => cb()),
+  /** Payload is `true` for automatic low-priority syncs, `false` for user-started scans. */
+  onScanStarted: (cb: (background: boolean) => void): Promise<UnlistenFn> =>
+    listen<boolean>("scan-started", (e) => cb(e.payload)),
   onScanProgress: (cb: (p: ScanProgress) => void): Promise<UnlistenFn> =>
     listen<ScanProgress>("scan-progress", (e) => cb(e.payload)),
   onScanFinished: (cb: (s: ScanSummary) => void): Promise<UnlistenFn> =>

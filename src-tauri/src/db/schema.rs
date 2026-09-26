@@ -32,7 +32,6 @@ const MIGRATIONS: &[&str] = &[
         modified_at     INTEGER,
         first_seen_at   INTEGER NOT NULL,
         last_seen_at    INTEGER NOT NULL,
-        scan_gen        INTEGER NOT NULL DEFAULT 0,
         content_status  INTEGER NOT NULL DEFAULT 0,
         is_favourite    INTEGER NOT NULL DEFAULT 0,
         open_count      INTEGER NOT NULL DEFAULT 0,
@@ -41,7 +40,7 @@ const MIGRATIONS: &[&str] = &[
 
     CREATE INDEX files_kind     ON files(kind);
     CREATE INDEX files_modified ON files(modified_at DESC);
-    CREATE INDEX files_root_gen ON files(root_id, scan_gen);
+    CREATE INDEX files_root     ON files(root_id);
     CREATE INDEX files_dir      ON files(dir COLLATE NOCASE);
 
     -- Trigram FTS gives fast substring matching on names and folders ("voic" -> "Invoice").

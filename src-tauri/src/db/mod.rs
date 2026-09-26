@@ -23,6 +23,8 @@ impl Db {
             std::fs::create_dir_all(parent)?;
         }
         let mut write = Connection::open(path)?;
+        // Only takes effect on a brand-new database; lets deletions shrink the file later.
+        write.execute_batch("PRAGMA auto_vacuum = INCREMENTAL;")?;
         configure(&write)?;
         schema::migrate(&mut write)?;
         let read = Connection::open(path)?;
@@ -48,7 +50,7 @@ fn configure(conn: &Connection) -> AppResult<()> {
          PRAGMA synchronous = NORMAL;
          PRAGMA foreign_keys = ON;
          PRAGMA temp_store = MEMORY;
-         PRAGMA cache_size = -16000;
+         PRAGMA cache_size = -8000;
          PRAGMA busy_timeout = 5000;",
     )?;
     Ok(())

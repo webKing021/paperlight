@@ -4,6 +4,8 @@ import { api, events, type Overview, type ScanProgress, type ScanSummary } from 
 interface IndexState {
   overview: Overview | null;
   scanning: boolean;
+  /** True while an automatic, low-priority sync is running (shown subtly). */
+  background: boolean;
   progress: ScanProgress | null;
   lastSummary: ScanSummary | null;
   error: string | null;
@@ -17,6 +19,7 @@ interface IndexState {
 export const useIndex = create<IndexState>((set, get) => ({
   overview: null,
   scanning: false,
+  background: false,
   progress: null,
   lastSummary: null,
   error: null,
@@ -34,7 +37,7 @@ export const useIndex = create<IndexState>((set, get) => ({
   startScan: async () => {
     set({ error: null });
     const started = await api.startScan();
-    if (started) set({ scanning: true, progress: null });
+    if (started) set({ scanning: true, background: false, progress: null });
   },
 
   cancelScan: async () => {
@@ -51,27 +54,33 @@ export function wireIndexEvents() {
   const { refresh } = useIndex.getState();
   let lastRefresh = 0;
 
-  events.onScanStarted(() => useIndex.setState({ scanning: true, progress: null, error: null }));
+  events.onScanStarted((background) =>
+    useIndex.setState({ scanning: true, background, progress: null, error: null }),
+  );
   events.onScanProgress((progress) => {
     useIndex.setState({ scanning: true, progress });
-    // Keep sidebar counts moving during long scans without hammering the DB.
+    // On the very first scan, fill the UI as documents are found. Later syncs are diffs and
+    // only refresh once, at the end.
     const now = Date.now();
-    if (now - lastRefresh > 1500) {
+    const firstScan = !useIndex.getState().overview?.lastScanAt;
+    if (firstScan && now - lastRefresh > 1500) {
       lastRefresh = now;
       refresh().then(() => useIndex.setState((s) => ({ revision: s.revision + 1 })));
     }
   });
   events.onScanFinished((summary) => {
+    const changed = summary.added + summary.updated + summary.removed > 0;
     useIndex.setState((s) => ({
       scanning: false,
+      background: false,
       progress: null,
       lastSummary: summary,
-      revision: s.revision + 1,
+      revision: changed ? s.revision + 1 : s.revision,
     }));
     refresh();
   });
   events.onScanError((message) => {
-    useIndex.setState({ scanning: false, progress: null, error: message });
+    useIndex.setState({ scanning: false, background: false, progress: null, error: message });
     refresh();
   });
   refresh();

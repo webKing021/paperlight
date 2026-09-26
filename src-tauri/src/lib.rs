@@ -6,7 +6,7 @@ mod state;
 
 use tauri::Manager;
 
-use crate::db::{roots, Db};
+use crate::db::Db;
 use crate::state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -18,14 +18,8 @@ pub fn run() {
             let db_path = app.path().app_data_dir()?.join("paperlight.db");
             let db = Db::open(&db_path)?;
             indexer::seed_defaults(&db)?;
-            let has_scanned = roots::get_setting(&db.reader(), "last_scan_at")?.is_some();
             app.manage(AppState::new(db));
-
-            // After the first scan, refresh the index quietly on every launch so changes made
-            // while Paperlight was closed show up.
-            if has_scanned {
-                indexer::spawn_scan(app.handle().clone());
-            }
+            indexer::sync_on_launch_if_stale(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

@@ -1,6 +1,6 @@
-//! The `files` table: batch upserts from scans, stale-row cleanup, stats and paged listing.
+//! The `files` table: change-only writes from scans, stats and paged listing.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use rusqlite::{params, params_from_iter, types::Value, Connection, Transaction};
 use serde::{Deserialize, Serialize};
@@ -20,26 +20,57 @@ pub struct FileRecord {
     pub modified_at: Option<i64>,
 }
 
-/// Inserts new files and refreshes metadata of known ones, stamping them with `scan_gen`.
-/// Name/dir are left untouched on conflict so the FTS index is not rewritten needlessly.
-pub fn upsert_batch(
+/// What the index already knows about a file; used to detect changes without touching the DB.
+#[derive(Debug, Clone)]
+pub struct Known {
+    pub id: i64,
+    pub name: String,
+    pub size: i64,
+    pub modified_at: Option<i64>,
+}
+
+impl Known {
+    pub fn matches(&self, f: &FileRecord) -> bool {
+        self.size == f.size && self.modified_at == f.modified_at && self.name == f.name
+    }
+}
+
+/// Snapshot of every indexed file under a root, keyed by lower-case path.
+pub fn snapshot(conn: &Connection, root_id: i64) -> AppResult<HashMap<String, Known>> {
+    let mut stmt =
+        conn.prepare("SELECT id, path, name, size, modified_at FROM files WHERE root_id = ?1")?;
+    let rows = stmt.query_map([root_id], |r| {
+        Ok((
+            r.get::<_, String>(1)?.to_lowercase(),
+            Known {
+                id: r.get(0)?,
+                name: r.get(2)?,
+                size: r.get(3)?,
+                modified_at: r.get(4)?,
+            },
+        ))
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+/// Inserts newly discovered files. A path already present under another (or no) root is
+/// re-attached to this one instead.
+pub fn insert_batch(
     tx: &Transaction,
     root_id: i64,
-    scan_gen: i64,
     now: i64,
     records: &[FileRecord],
 ) -> AppResult<()> {
     let mut stmt = tx.prepare_cached(
         "INSERT INTO files (path, name, ext, kind, dir, root_id, size, created_at, modified_at,
-                            first_seen_at, last_seen_at, scan_gen)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, ?11)
+                            first_seen_at, last_seen_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)
          ON CONFLICT(path) DO UPDATE SET
              root_id      = excluded.root_id,
              size         = excluded.size,
              created_at   = excluded.created_at,
              modified_at  = excluded.modified_at,
-             last_seen_at = excluded.last_seen_at,
-             scan_gen     = excluded.scan_gen",
+             last_seen_at = excluded.last_seen_at",
     )?;
     for f in records {
         stmt.execute(params![
@@ -52,19 +83,49 @@ pub fn upsert_batch(
             f.size,
             f.created_at,
             f.modified_at,
-            now,
-            scan_gen
+            now
         ])?;
     }
     Ok(())
 }
 
-/// Removes files under `root_id` not seen in scan `scan_gen` (deleted while we weren't looking).
-pub fn remove_stale(conn: &Connection, root_id: i64, scan_gen: i64) -> AppResult<usize> {
-    Ok(conn.execute(
-        "DELETE FROM files WHERE root_id = ?1 AND scan_gen < ?2",
-        params![root_id, scan_gen],
-    )?)
+/// Refreshes files whose size, modified time or name (case) changed.
+pub fn update_batch(tx: &Transaction, now: i64, records: &[(i64, FileRecord)]) -> AppResult<()> {
+    let mut stmt = tx.prepare_cached(
+        "UPDATE files SET path = ?2, name = ?3, dir = ?4, size = ?5, created_at = ?6,
+                          modified_at = ?7, last_seen_at = ?8
+         WHERE id = ?1",
+    )?;
+    for (id, f) in records {
+        stmt.execute(params![
+            id,
+            f.path,
+            f.name,
+            f.dir,
+            f.size,
+            f.created_at,
+            f.modified_at,
+            now
+        ])?;
+    }
+    Ok(())
+}
+
+/// Deletes rows by id (files that no longer exist on disk).
+pub fn delete_ids(conn: &mut Connection, ids: &[i64]) -> AppResult<usize> {
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    let tx = conn.transaction()?;
+    let mut removed = 0;
+    {
+        let mut stmt = tx.prepare_cached("DELETE FROM files WHERE id = ?1")?;
+        for id in ids {
+            removed += stmt.execute([id])?;
+        }
+    }
+    tx.commit()?;
+    Ok(removed)
 }
 
 /// Drops rows that belong to no root any more (their root was removed or replaced and the
