@@ -1,4 +1,4 @@
-import { Monitor, Moon, PanelRight, Search, Sun, X } from "lucide-react";
+import { Monitor, Moon, PanelLeft, PanelRight, Search, Sun, X } from "lucide-react";
 import clsx from "clsx";
 import { useEffect, useRef } from "react";
 import { useUi } from "../stores/ui";
@@ -13,6 +13,8 @@ export function SearchBar() {
   const cycleTheme = useUi((s) => s.cycleTheme);
   const detailsOpen = useUi((s) => s.detailsOpen);
   const toggleDetails = useUi((s) => s.toggleDetails);
+  const sidebarOpen = useUi((s) => s.sidebarOpen);
+  const toggleSidebar = useUi((s) => s.toggleSidebar);
   const inputRef = useRef<HTMLInputElement>(null);
   const ThemeIcon = THEME_ICON[theme];
 
@@ -28,13 +30,28 @@ export function SearchBar() {
         e.preventDefault();
         toggleDetails();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleDetails]);
+  }, [toggleDetails, toggleSidebar]);
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-paper px-5">
+      <button
+        type="button"
+        onClick={toggleSidebar}
+        title={sidebarOpen ? "Hide sidebar (Ctrl+B)" : "Show sidebar (Ctrl+B)"}
+        className={clsx(
+          "-ml-2 flex size-9 items-center justify-center rounded-md transition-colors hover:bg-hover hover:text-ink",
+          sidebarOpen ? "text-ink" : "text-graphite",
+        )}
+      >
+        <PanelLeft className="size-4" strokeWidth={1.6} />
+      </button>
       <label className="flex h-9 flex-1 items-center gap-2.5 rounded-md border border-line bg-sheet px-3 transition-colors focus-within:border-ink">
         <Search className="size-[15px] text-pencil" strokeWidth={1.8} />
         <input

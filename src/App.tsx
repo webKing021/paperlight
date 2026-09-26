@@ -5,6 +5,7 @@ import { Onboarding } from "./components/Onboarding";
 import { ScanBanner } from "./components/ScanBanner";
 import { SearchBar } from "./components/SearchBar";
 import { Sidebar } from "./components/Sidebar";
+import { SlidePanel } from "./components/SlidePanel";
 import { StatusBar } from "./components/StatusBar";
 import { Toasts } from "./components/Toasts";
 import { api, type SortKey, type Tag, type ViewFilter } from "./lib/api";
@@ -16,6 +17,7 @@ import { useUi, type Sort, type View } from "./stores/ui";
 
 // Report pages are loaded on first visit, keeping the startup bundle small.
 const PAGES = {
+  overview: lazy(() => import("./components/DashboardView")),
   duplicates: lazy(() => import("./components/DuplicatesView")),
   storage: lazy(() => import("./components/StorageView")),
   settings: lazy(() => import("./components/SettingsView")),
@@ -84,6 +86,7 @@ function viewConfig(view: View, tags: Tag[]): ViewConfig {
         emptyHint: "Right-click a document (or press Ctrl+T) to add tags.",
       };
     }
+    case "overview":
     case "duplicates":
     case "storage":
     case "settings":
@@ -110,6 +113,7 @@ export default function App() {
   const setSort = useUi((s) => s.setSort);
   const rawQuery = useUi((s) => s.query);
   const detailsOpen = useUi((s) => s.detailsOpen);
+  const sidebarOpen = useUi((s) => s.sidebarOpen);
   const text = useDebounced(rawQuery.trim(), 90);
   const config = useMemo(() => viewConfig(view, tags), [view, tags]);
 
@@ -159,7 +163,9 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1">
-        <Sidebar />
+        <SlidePanel side="left" width={224} open={sidebarOpen}>
+          <Sidebar />
+        </SlidePanel>
         <main className="flex min-w-0 flex-1 flex-col">
           <SearchBar />
           <ScanBanner />
@@ -186,7 +192,9 @@ export default function App() {
             ) : null}
           </section>
         </main>
-        {detailsOpen && !firstRun && view.type !== "settings" && <DetailsPane />}
+        <SlidePanel side="right" width={320} open={detailsOpen && !firstRun && view.type !== "settings"}>
+          <DetailsPane />
+        </SlidePanel>
       </div>
       <StatusBar />
       <Toasts />

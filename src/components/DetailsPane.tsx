@@ -49,7 +49,7 @@ export function DetailsPane() {
 
   return (
     <aside
-      className="flex shrink-0 flex-col border-l border-line bg-sheet"
+      className="flex h-full shrink-0 flex-col border-l border-line bg-sheet"
       style={{ width: PANE_WIDTH }}
     >
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-line px-4">

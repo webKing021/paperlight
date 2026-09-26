@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import {
   Clock,
+  LayoutGrid,
   Copy,
   Files,
   HardDrive,
@@ -26,6 +27,7 @@ interface NavItem {
 }
 
 const LIBRARY: NavItem[] = [
+  { label: "Overview", icon: LayoutGrid, view: { type: "overview" } },
   { label: "All documents", icon: Files, view: { type: "all" }, count: (s) => s.total },
   { label: "Recent", icon: Clock, view: { type: "recent" } },
   { label: "Recently opened", icon: History, view: { type: "opened" }, count: (s) => s.opened },
@@ -100,7 +102,7 @@ export function Sidebar() {
   const [editing, setEditing] = useState<number | null>(null);
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-line bg-paper-2">
+    <aside className="flex h-full w-56 shrink-0 flex-col border-r border-line bg-paper-2">
       <div className="flex h-14 items-center gap-2 px-4">
         <Mark className="size-[22px]" />
         <span className="text-[15px] font-semibold tracking-[-0.01em]">paperlight</span>

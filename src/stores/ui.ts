@@ -5,6 +5,7 @@ import type { FileKind } from "../lib/fileKinds";
 export type ThemeMode = "system" | "light" | "dark";
 
 export type View =
+  | { type: "overview" }
   | { type: "all" }
   | { type: "recent" }
   | { type: "opened" }
@@ -42,6 +43,8 @@ interface UiState {
   setSelectedId: (id: number | null) => void;
   detailsOpen: boolean;
   toggleDetails: () => void;
+  sidebarOpen: boolean;
+  toggleSidebar: () => void;
   toasts: Toast[];
   toast: (text: string, tone?: Toast["tone"]) => void;
   dismissToast: (id: number) => void;
@@ -49,6 +52,7 @@ interface UiState {
 
 let toastId = 0;
 const DETAILS_KEY = "paperlight.details";
+const SIDEBAR_KEY = "paperlight.sidebar";
 
 function loadFlag(key: string, fallback: boolean): boolean {
   try {
@@ -81,7 +85,7 @@ function loadTheme(): ThemeMode {
 
 export const useUi = create<UiState>((set, get) => ({
   theme: loadTheme(),
-  view: { type: "all" },
+  view: { type: "overview" },
   query: "",
   sort: { key: "modified", ascending: false },
   setSort: (sort) => set({ sort }),
@@ -107,6 +111,12 @@ export const useUi = create<UiState>((set, get) => ({
     const detailsOpen = !get().detailsOpen;
     saveFlag(DETAILS_KEY, detailsOpen);
     set({ detailsOpen });
+  },
+  sidebarOpen: loadFlag(SIDEBAR_KEY, true),
+  toggleSidebar: () => {
+    const sidebarOpen = !get().sidebarOpen;
+    saveFlag(SIDEBAR_KEY, sidebarOpen);
+    set({ sidebarOpen });
   },
   toasts: [],
   toast: (text, tone = "info") => {
