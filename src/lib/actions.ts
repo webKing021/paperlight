@@ -3,17 +3,18 @@ import { useIndex } from "../stores";
 import { useUi } from "../stores/ui";
 
 const toast = (text: string, tone?: "info" | "error") => useUi.getState().toast(text, tone);
+const touched = () => useIndex.getState().touched();
 
 /** A failed open usually means the file vanished; the backend dropped it, so refresh lists. */
 function onMissing(e: unknown) {
   toast(String(e), "error");
-  useIndex.setState((s) => ({ revision: s.revision + 1 }));
-  useIndex.getState().refresh();
+  touched();
 }
 
 export async function openFile(row: FileRow) {
   try {
     await api.openFile(row.id);
+    touched(); // feeds "Recently opened"
   } catch (e) {
     onMissing(e);
   }
@@ -33,5 +34,36 @@ export async function copyPath(row: FileRow) {
     toast("Path copied");
   } catch {
     toast("Could not copy the path", "error");
+  }
+}
+
+export async function toggleFavourite(row: FileRow) {
+  try {
+    await api.setFavourite(row.id, !row.isFavourite);
+    toast(row.isFavourite ? "Removed from favourites" : "Added to favourites");
+    touched();
+  } catch (e) {
+    toast(String(e), "error");
+  }
+}
+
+export async function toggleTag(row: FileRow, tagId: number) {
+  try {
+    await api.setFileTag(row.id, tagId, !row.tags.includes(tagId));
+    touched();
+  } catch (e) {
+    toast(String(e), "error");
+  }
+}
+
+/** Creates a tag (or reuses one with that name) and puts it on `row`. */
+export async function tagWithNew(row: FileRow, name: string) {
+  try {
+    const tag = await api.createTag(name);
+    await api.setFileTag(row.id, tag.id, true);
+    toast(`Tagged “${tag.name}”`);
+    touched();
+  } catch (e) {
+    toast(String(e), "error");
   }
 }

@@ -8,6 +8,7 @@ use tauri::{AppHandle, State};
 use crate::db::files::{self, ListQuery, Page, Stats};
 use crate::db::now_ms;
 use crate::db::roots::{self, Root};
+use crate::db::tags::{self, Tag};
 use crate::error::{AppError, AppResult};
 use crate::indexer;
 use crate::indexer::scanner::ScanMode;
@@ -135,4 +136,44 @@ pub fn start_scan(app: AppHandle) -> bool {
 #[tauri::command]
 pub fn cancel_scan(state: State<'_, AppState>) {
     state.cancel.store(true, Ordering::SeqCst);
+}
+
+#[tauri::command]
+pub fn set_favourite(state: State<'_, AppState>, id: i64, on: bool) -> AppResult<()> {
+    tags::set_favourite(&state.db.writer(), id, on)
+}
+
+#[tauri::command]
+pub fn list_tags(state: State<'_, AppState>) -> AppResult<Vec<Tag>> {
+    tags::list_tags(&state.db.reader())
+}
+
+#[tauri::command]
+pub fn create_tag(state: State<'_, AppState>, name: String) -> AppResult<Tag> {
+    tags::create_tag(&state.db.writer(), &name)
+}
+
+#[tauri::command]
+pub fn update_tag(
+    state: State<'_, AppState>,
+    id: i64,
+    name: String,
+    color: String,
+) -> AppResult<()> {
+    tags::update_tag(&state.db.writer(), id, &name, &color)
+}
+
+#[tauri::command]
+pub fn delete_tag(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    tags::delete_tag(&state.db.writer(), id)
+}
+
+#[tauri::command]
+pub fn set_file_tag(
+    state: State<'_, AppState>,
+    file_id: i64,
+    tag_id: i64,
+    on: bool,
+) -> AppResult<()> {
+    tags::set_file_tag(&state.db.writer(), file_id, tag_id, on)
 }

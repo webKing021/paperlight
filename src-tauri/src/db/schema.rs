@@ -67,6 +67,25 @@ const MIGRATIONS: &[&str] = &[
         value  TEXT NOT NULL
     );
     "#,
+    // v2 — tags (labels kept in Paperlight only; files on disk are never touched)
+    r#"
+    CREATE TABLE tags (
+        id          INTEGER PRIMARY KEY,
+        name        TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+        color       TEXT    NOT NULL,
+        created_at  INTEGER NOT NULL
+    );
+
+    CREATE TABLE file_tags (
+        file_id  INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        tag_id   INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+        PRIMARY KEY (file_id, tag_id)
+    ) WITHOUT ROWID;
+    CREATE INDEX file_tags_tag ON file_tags(tag_id);
+
+    CREATE INDEX files_opened ON files(last_opened_at DESC) WHERE last_opened_at IS NOT NULL;
+    CREATE INDEX files_favourite ON files(is_favourite) WHERE is_favourite = 1;
+    "#,
 ];
 
 pub fn migrate(conn: &mut Connection) -> AppResult<()> {

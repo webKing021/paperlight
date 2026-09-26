@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, events, type Overview, type ScanProgress, type ScanSummary } from "../lib/api";
+import { api, events, type Overview, type ScanProgress, type ScanSummary, type Tag } from "../lib/api";
 
 interface IndexState {
   overview: Overview | null;
@@ -11,7 +11,11 @@ interface IndexState {
   error: string | null;
   /** Bumped whenever the index content changes so file lists reload. */
   revision: number;
+  tags: Tag[];
   refresh: () => Promise<void>;
+  refreshTags: () => Promise<void>;
+  /** Call after changing favourites/tags: reloads lists, counts and tags. */
+  touched: () => void;
   startScan: () => Promise<void>;
   cancelScan: () => Promise<void>;
 }
@@ -24,6 +28,21 @@ export const useIndex = create<IndexState>((set, get) => ({
   lastSummary: null,
   error: null,
   revision: 0,
+  tags: [],
+
+  refreshTags: async () => {
+    try {
+      set({ tags: await api.listTags() });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  touched: () => {
+    set((s) => ({ revision: s.revision + 1 }));
+    get().refresh();
+    get().refreshTags();
+  },
 
   refresh: async () => {
     try {
@@ -80,13 +99,11 @@ export function wireIndexEvents() {
     refresh();
   });
   // Live changes from the file watcher: refresh counts and visible lists.
-  events.onIndexChanged(() => {
-    useIndex.setState((s) => ({ revision: s.revision + 1 }));
-    refresh();
-  });
+  events.onIndexChanged(() => useIndex.getState().touched());
   events.onScanError((message) => {
     useIndex.setState({ scanning: false, background: false, progress: null, error: message });
     refresh();
   });
   refresh();
+  useIndex.getState().refreshTags();
 }

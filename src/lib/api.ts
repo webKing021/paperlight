@@ -13,6 +13,19 @@ export interface Stats {
   total: number;
   totalSize: number;
   byKind: Partial<Record<FileKind, number>>;
+  favourites: number;
+  opened: number;
+}
+
+export type TagColor = "brick" | "slate" | "moss" | "ochre" | "plum" | "teal" | "graphite";
+
+export const TAG_COLORS: TagColor[] = ["brick", "slate", "moss", "ochre", "plum", "teal", "graphite"];
+
+export interface Tag {
+  id: number;
+  name: string;
+  color: TagColor;
+  count: number;
 }
 
 export interface Overview {
@@ -43,6 +56,7 @@ export interface FileRow {
   isFavourite: boolean;
   openCount: number;
   lastOpenedAt: number | null;
+  tags: number[];
 }
 
 export interface Page {
@@ -51,21 +65,26 @@ export interface Page {
   items: FileRow[];
 }
 
-export type SortKey = "modified" | "name" | "size";
+export type SortKey = "modified" | "name" | "size" | "opened";
 
-export interface ListQuery {
+/** Which slice of the index a view shows; shared by browsing and searching. */
+export interface ViewFilter {
   kind?: FileKind;
   modifiedAfter?: number;
+  favourites?: boolean;
+  opened?: boolean;
+  tagId?: number;
+}
+
+export interface ListQuery extends ViewFilter {
   sort?: SortKey;
   ascending?: boolean;
   offset?: number;
   limit?: number;
 }
 
-export interface SearchQuery {
+export interface SearchQuery extends ViewFilter {
   text: string;
-  kind?: FileKind;
-  modifiedAfter?: number;
   offset?: number;
   limit?: number;
 }
@@ -102,6 +121,14 @@ export const api = {
   addExclusion: (pattern: string) => invoke<void>("add_exclusion", { pattern }),
   removeExclusion: (pattern: string) => invoke<void>("remove_exclusion", { pattern }),
   startScan: () => invoke<boolean>("start_scan"),
+  setFavourite: (id: number, on: boolean) => invoke<void>("set_favourite", { id, on }),
+  listTags: () => invoke<Tag[]>("list_tags"),
+  createTag: (name: string) => invoke<Tag>("create_tag", { name }),
+  updateTag: (id: number, name: string, color: TagColor) =>
+    invoke<void>("update_tag", { id, name, color }),
+  deleteTag: (id: number) => invoke<void>("delete_tag", { id }),
+  setFileTag: (fileId: number, tagId: number, on: boolean) =>
+    invoke<void>("set_file_tag", { fileId, tagId, on }),
   cancelScan: () => invoke<void>("cancel_scan"),
 };
 
