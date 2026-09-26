@@ -4,18 +4,33 @@ mod db;
 mod error;
 mod indexer;
 mod search;
+mod shell;
 mod state;
 
-use tauri::Manager;
+use tauri::{Manager, RunEvent};
+use tauri_plugin_autostart::MacosLauncher;
 
 use crate::db::Db;
 use crate::state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        // Must be first: a second launch just brings the running Paperlight forward.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            shell::focus_main(app);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec!["--hidden"]),
+        ))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| shell::on_hotkey(app, event.state()))
+                .build(),
+        )
         .setup(|app| {
             let db_path = app.path().app_data_dir()?.join("paperlight.db");
             let db = Db::open(&db_path)?;
@@ -35,6 +50,7 @@ pub fn run() {
                     eprintln!("paperlight: could not start watcher: {e}");
                 }
             }
+            shell::setup(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -59,7 +75,21 @@ pub fn run() {
             commands::set_file_tag,
             commands::file_details,
             commands::preview_pdf,
+            commands::shell_info,
+            commands::set_autostart,
+            commands::hide_quick,
+            commands::show_main,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Paperlight");
+        .build(tauri::generate_context!())
+        .expect("error while building Paperlight");
+
+    app.run(|_app, event| {
+        // Closing the last window keeps Paperlight in the tray (watching files). Only "Quit"
+        // from the tray menu, which exits with a code, really ends the app.
+        if let RunEvent::ExitRequested { api, code, .. } = event {
+            if code.is_none() {
+                api.prevent_exit();
+            }
+        }
+    });
 }

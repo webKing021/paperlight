@@ -118,6 +118,12 @@ export interface ScanSummary {
   cancelled: boolean;
 }
 
+export interface ShellInfo {
+  /** Global quick-search hotkey, e.g. "Alt+Space"; null if none could be registered. */
+  hotkey: string | null;
+  autostart: boolean;
+}
+
 export const api = {
   getOverview: () => invoke<Overview>("get_overview"),
   listFiles: (query: ListQuery) => invoke<Page>("list_files", { query }),
@@ -143,6 +149,10 @@ export const api = {
   setFileTag: (fileId: number, tagId: number, on: boolean) =>
     invoke<void>("set_file_tag", { fileId, tagId, on }),
   cancelScan: () => invoke<void>("cancel_scan"),
+  shellInfo: () => invoke<ShellInfo>("shell_info"),
+  setAutostart: (on: boolean) => invoke<void>("set_autostart", { on }),
+  hideQuick: () => invoke<void>("hide_quick"),
+  showMain: () => invoke<void>("show_main"),
 };
 
 export const events = {
