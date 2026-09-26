@@ -1,9 +1,15 @@
 //! What counts as a document, and which folders are never worth walking.
 
+use std::collections::HashSet;
 use std::path::Path;
 
+use rusqlite::Connection;
+
+use crate::db::roots;
+use crate::error::AppResult;
+
 /// Indexed extensions and the document kind each one maps to.
-const EXTENSIONS: &[(&str, &str)] = &[
+pub const EXTENSIONS: &[(&str, &str)] = &[
     ("pdf", "pdf"),
     ("doc", "word"),
     ("docx", "word"),
@@ -32,6 +38,54 @@ pub fn kind_for_ext(ext: &str) -> Option<&'static str> {
         .iter()
         .find(|(e, _)| *e == ext)
         .map(|(_, kind)| *kind)
+}
+
+/// Settings key holding the extensions the user chose not to index (comma-separated).
+const DISABLED_KEY: &str = "disabled_formats";
+
+/// Which extensions are indexed. Stores the *disabled* ones, so formats added in a later
+/// version are indexed by default.
+#[derive(Debug, Default, Clone)]
+pub struct Formats {
+    disabled: HashSet<String>,
+}
+
+impl Formats {
+    pub fn new<S: AsRef<str>>(disabled: &[S]) -> Self {
+        Self {
+            disabled: disabled
+                .iter()
+                .map(|e| e.as_ref().trim().to_ascii_lowercase())
+                .filter(|e| kind_for_ext(e).is_some())
+                .collect(),
+        }
+    }
+
+    pub fn load(conn: &Connection) -> AppResult<Self> {
+        let raw = roots::get_setting(conn, DISABLED_KEY)?.unwrap_or_default();
+        let list: Vec<&str> = raw.split(',').filter(|e| !e.is_empty()).collect();
+        Ok(Self::new(&list))
+    }
+
+    pub fn save(&self, conn: &Connection) -> AppResult<()> {
+        roots::set_setting(conn, DISABLED_KEY, &self.disabled_list().join(","))
+    }
+
+    /// Disabled extensions in a stable order.
+    pub fn disabled_list(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.disabled.iter().cloned().collect();
+        v.sort();
+        v
+    }
+
+    pub fn is_enabled(&self, ext: &str) -> bool {
+        !self.disabled.contains(ext)
+    }
+
+    /// The kind of a lower-case extension, if it is a document format the user wants indexed.
+    pub fn kind(&self, ext: &str) -> Option<&'static str> {
+        kind_for_ext(ext).filter(|_| self.is_enabled(ext))
+    }
 }
 
 /// Office lock/temp files that appear next to open documents.
@@ -159,6 +213,15 @@ mod tests {
         assert_eq!(kind_for_ext("pptx"), Some("slides"));
         assert_eq!(kind_for_ext("exe"), None);
         assert_eq!(kind_for_ext("txt"), None);
+    }
+
+    #[test]
+    fn disabled_formats_are_not_documents() {
+        let f = Formats::new(&["CSV", "doc", "exe"]);
+        assert_eq!(f.kind("csv"), None);
+        assert_eq!(f.kind("doc"), None);
+        assert_eq!(f.kind("docx"), Some("word"));
+        assert_eq!(f.disabled_list(), ["csv", "doc"]); // unknown extensions are dropped
     }
 
     #[test]

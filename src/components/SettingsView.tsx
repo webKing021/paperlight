@@ -2,7 +2,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { api, type RootInfo, type SettingsInfo } from "../lib/api";
+import { api, type FormatInfo, type RootInfo, type SettingsInfo } from "../lib/api";
+import { FILE_KINDS, KIND_ORDER } from "../lib/fileKinds";
 import { formatRelative, formatSize } from "../lib/format";
 import { useIndex } from "../stores";
 import { useUi, type ThemeMode } from "../stores/ui";
@@ -53,6 +54,7 @@ export default function SettingsView() {
         </p>
 
         <Locations info={info} change={change} refreshOverview={refreshOverview} />
+        <Formats />
         <Exclusions info={info} change={change} />
         <Appearance />
         <Background info={info} change={change} />
@@ -247,6 +249,141 @@ function LocationRow({
         <X className="size-3.5" />
       </button>
     </div>
+  );
+}
+
+/**
+ * Which formats are indexed. Changes are staged and applied together, because turning a
+ * format off removes its documents (with their favourites and tags) from the index.
+ */
+function Formats() {
+  const revision = useIndex((s) => s.revision);
+  const startScan = useIndex((s) => s.startScan);
+  const touched = useIndex((s) => s.touched);
+  const toast = useUi((s) => s.toast);
+  const [formats, setFormats] = useState<FormatInfo[] | null>(null);
+  const [draft, setDraft] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.listFormats().then((list) => {
+      setFormats(list);
+      setDraft(new Set(list.filter((f) => !f.enabled).map((f) => f.ext)));
+    }, () => {});
+  }, [revision]);
+
+  if (!formats) return null;
+
+  const saved = new Set(formats.filter((f) => !f.enabled).map((f) => f.ext));
+  const turnedOff = formats.filter((f) => draft.has(f.ext) && !saved.has(f.ext));
+  const turnedOn = formats.filter((f) => !draft.has(f.ext) && saved.has(f.ext));
+  const dirty = turnedOff.length + turnedOn.length > 0;
+  const removes = turnedOff.reduce((n, f) => n + f.count, 0);
+  const noneLeft = draft.size === formats.length;
+
+  const toggle = (exts: string[], off: boolean) =>
+    setDraft((d) => {
+      const next = new Set(d);
+      for (const e of exts) {
+        if (off) next.add(e);
+        else next.delete(e);
+      }
+      return next;
+    });
+
+  const apply = async () => {
+    setBusy(true);
+    try {
+      const removed = await api.setFormats([...draft]);
+      if (removed > 0) toast(`${removed.toLocaleString()} documents removed from Paperlight`);
+      if (turnedOn.length > 0) await startScan();
+      touched();
+    } catch (e) {
+      toast(String(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Section title="File formats">
+      <p className="pt-3 text-[12.5px] leading-relaxed text-graphite">
+        Choose what Paperlight indexes. Only ticked formats are scanned, watched and shown.
+      </p>
+      <div className="mt-2">
+        {KIND_ORDER.map((kind) => {
+          const group = formats.filter((f) => f.kind === kind);
+          const exts = group.map((f) => f.ext);
+          const onCount = exts.filter((e) => !draft.has(e)).length;
+          return (
+            <div key={kind} className="flex items-start gap-4 border-b border-line py-2.5">
+              <label className="flex w-36 shrink-0 cursor-pointer items-center gap-2.5 pt-0.5 text-[13px] text-ink">
+                <input
+                  type="checkbox"
+                  checked={onCount === exts.length}
+                  ref={(el) => {
+                    if (el) el.indeterminate = onCount > 0 && onCount < exts.length;
+                  }}
+                  onChange={(e) => toggle(exts, !e.target.checked)}
+                  className="size-3.5 accent-[var(--ink)]"
+                />
+                <span className={clsx("h-3.5 w-[3px] rounded-full", FILE_KINDS[kind].swatch)} />
+                {FILE_KINDS[kind].label}
+              </label>
+              <div className="flex flex-1 flex-wrap gap-x-4 gap-y-1.5">
+                {group.map((f) => (
+                  <label
+                    key={f.ext}
+                    title={f.readsText ? undefined : "Found by name only; the text isn't read"}
+                    className="flex cursor-pointer items-center gap-1.5 font-mono text-[12px] text-ink-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!draft.has(f.ext)}
+                      onChange={(e) => toggle([f.ext], !e.target.checked)}
+                      className="size-3 accent-[var(--ink)]"
+                    />
+                    {f.ext}
+                    {!f.readsText && <span className="text-pencil">*</span>}
+                    <span className="text-[11px] text-pencil">{f.count.toLocaleString()}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-[12px] leading-relaxed text-pencil">
+        * found by name only; the text inside isn't read.
+      </p>
+      {dirty && (
+        <div className="mt-3 flex items-center gap-3 rounded-md border border-line-strong bg-sheet px-3 py-2.5">
+          <p className="flex-1 text-[12.5px] leading-snug text-ink-2">
+            {noneLeft
+              ? "Keep at least one format."
+              : [
+                  turnedOff.length > 0 &&
+                    `Removes ${removes.toLocaleString()} ${removes === 1 ? "document" : "documents"} (with their favourites and tags)`,
+                  turnedOn.length > 0 && "rescans to find the formats you added",
+                ]
+                  .filter(Boolean)
+                  .join(" and ")
+                  .replace(/^./, (c) => c.toUpperCase()) + "."}
+          </p>
+          <button
+            type="button"
+            onClick={apply}
+            disabled={busy || noneLeft}
+            className="h-8 rounded-md bg-ink px-3 text-[12.5px] font-medium text-on-ink hover:opacity-90 disabled:opacity-40"
+          >
+            Apply
+          </button>
+          <OutlineButton onClick={() => setDraft(saved)} disabled={busy}>
+            Discard
+          </OutlineButton>
+        </div>
+      )}
+    </Section>
   );
 }
 

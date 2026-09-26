@@ -474,6 +474,13 @@ pub fn largest(conn: &Connection, limit: i64) -> AppResult<Vec<FileRow>> {
     Ok(rows)
 }
 
+/// Number of indexed documents per extension.
+pub fn count_by_ext(conn: &Connection) -> AppResult<HashMap<String, i64>> {
+    let mut stmt = conn.prepare("SELECT ext, COUNT(*) FROM files GROUP BY ext")?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
 /// Number of indexed documents per root id.
 pub fn count_by_root(conn: &Connection) -> AppResult<HashMap<i64, i64>> {
     let mut stmt = conn.prepare(

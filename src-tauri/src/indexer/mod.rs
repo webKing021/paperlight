@@ -38,21 +38,36 @@ pub fn seed_defaults(db: &Db) -> AppResult<()> {
     Ok(())
 }
 
-/// Removes indexed documents that the current exclusions now cover, right away (no rescan).
-/// Returns how many were removed. Documents under paused locations are kept.
+/// Removes indexed documents that the current exclusions or format choices no longer cover,
+/// right away (no rescan). Returns how many were removed. Documents under paused locations
+/// stay unless their format was turned off.
 pub fn purge_excluded(db: &Db) -> AppResult<usize> {
-    let (root_list, patterns) = {
+    let (root_list, patterns, formats) = {
         let conn = db.reader();
-        (roots::list_roots(&conn)?, roots::list_exclusions(&conn)?)
+        (
+            roots::list_roots(&conn)?,
+            roots::list_exclusions(&conn)?,
+            filters::Formats::load(&conn)?,
+        )
     };
     let ex = filters::Exclusions::new(&patterns);
     let doomed: Vec<i64> = {
         let conn = db.reader();
-        let mut stmt = conn.prepare("SELECT id, path FROM files")?;
-        let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+        let mut stmt = conn.prepare("SELECT id, path, ext FROM files")?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        })?;
         let mut doomed = Vec::new();
         for row in rows {
-            let (id, path) = row?;
+            let (id, path, ext) = row?;
+            if !formats.is_enabled(&ext) {
+                doomed.push(id);
+                continue;
+            }
             let root = root_list
                 .iter()
                 .filter(|r| roots::is_within(&path, &r.path))
@@ -177,6 +192,15 @@ mod tests {
         let s = scanner::scan(&db, &AtomicBool::new(false), ScanMode::Foreground, |_| {}).unwrap();
         assert_eq!((s.added, s.removed), (0, 0));
         roots::remove_exclusion(&db.writer(), &excluded).unwrap();
+        let s = scanner::scan(&db, &AtomicBool::new(false), ScanMode::Foreground, |_| {}).unwrap();
+        assert_eq!(s.added, 1);
+
+        // Turning a format off drops its documents; turning it back on finds them again.
+        filters::Formats::new(&["pdf"]).save(&db.writer()).unwrap();
+        assert_eq!(purge_excluded(&db).unwrap(), 1);
+        let s = scanner::scan(&db, &AtomicBool::new(false), ScanMode::Foreground, |_| {}).unwrap();
+        assert_eq!((s.added, s.files_found), (0, 1));
+        filters::Formats::default().save(&db.writer()).unwrap();
         let s = scanner::scan(&db, &AtomicBool::new(false), ScanMode::Foreground, |_| {}).unwrap();
         assert_eq!(s.added, 1);
     }

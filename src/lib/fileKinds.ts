@@ -37,3 +37,10 @@ export const FILE_KINDS: Record<FileKind, KindInfo> = {
 };
 
 export const KIND_ORDER: FileKind[] = ["pdf", "word", "excel", "slides"];
+
+/** Kinds with at least one format the user indexes (the rest get no view or bucket). */
+export function enabledKinds(disabled: string[] | undefined): FileKind[] {
+  if (!disabled?.length) return KIND_ORDER;
+  const off = new Set(disabled);
+  return KIND_ORDER.filter((k) => FILE_KINDS[k].extensions.some((e) => !off.has(e)));
+}
