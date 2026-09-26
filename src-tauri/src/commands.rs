@@ -12,6 +12,7 @@ use crate::db::tags::{self, Tag};
 use crate::dupes::{self, DupGroup};
 use crate::error::{AppError, AppResult};
 use crate::indexer;
+use crate::indexer::filters::{Formats, EXTENSIONS};
 use crate::indexer::scanner::ScanMode;
 use crate::indexer::watcher;
 use crate::search::{self, SearchQuery};
@@ -29,6 +30,8 @@ pub struct Overview {
     pub watching: Option<usize>,
     /// Documents whose text is still waiting to be read.
     pub content_pending: i64,
+    /// Extensions the user chose not to index.
+    pub disabled_formats: Vec<String>,
 }
 
 #[tauri::command]
@@ -41,6 +44,7 @@ pub fn get_overview(app: AppHandle, state: State<'_, AppState>) -> AppResult<Ove
         scanning: state.scanning.load(Ordering::SeqCst),
         watching: watcher::watched_locations(&app),
         content_pending: crate::content::pending_count(&conn)?,
+        disabled_formats: Formats::load(&conn)?.disabled_list(),
     })
 }
 
@@ -336,4 +340,54 @@ pub async fn find_duplicates(app: AppHandle) -> AppResult<Vec<DupGroup>> {
     })
     .await
     .map_err(|e| AppError::msg(e.to_string()))?
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FormatInfo {
+    pub ext: &'static str,
+    pub kind: &'static str,
+    pub enabled: bool,
+    /// Documents of this format in the index.
+    pub count: i64,
+    /// Whether the text inside is read (otherwise found by name only).
+    pub reads_text: bool,
+}
+
+#[tauri::command]
+pub fn list_formats(state: State<'_, AppState>) -> AppResult<Vec<FormatInfo>> {
+    let conn = state.db.reader();
+    let formats = Formats::load(&conn)?;
+    let counts = files::count_by_ext(&conn)?;
+    Ok(EXTENSIONS
+        .iter()
+        .map(|&(ext, kind)| FormatInfo {
+            ext,
+            kind,
+            enabled: formats.is_enabled(ext),
+            count: counts.get(ext).copied().unwrap_or(0),
+            reads_text: crate::content::extract::reads_text(ext),
+        })
+        .collect())
+}
+
+/// Chooses which formats are indexed. Documents of formats turned off leave the index at once;
+/// the UI starts a rescan when a format is turned on. Returns how many were removed.
+#[tauri::command]
+pub fn set_formats(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    disabled: Vec<String>,
+) -> AppResult<usize> {
+    Formats::new(&disabled).save(&state.db.writer())?;
+    let removed = indexer::purge_excluded(&state.db)?;
+    watcher::refresh(&app);
+    let _ = app.emit(
+        "index-changed",
+        &watcher::Applied {
+            removed: removed as u64,
+            ..Default::default()
+        },
+    );
+    Ok(removed)
 }

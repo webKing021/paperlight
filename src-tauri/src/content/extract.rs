@@ -20,6 +20,29 @@ pub enum Extracted {
     Unsupported,
 }
 
+/// True for formats whose text Paperlight can read (the rest are found by name only).
+pub fn reads_text(ext: &str) -> bool {
+    matches!(
+        ext,
+        "pdf"
+            | "docx"
+            | "docm"
+            | "dotx"
+            | "pptx"
+            | "pptm"
+            | "ppsx"
+            | "odt"
+            | "odp"
+            | "xlsx"
+            | "xlsm"
+            | "xlsb"
+            | "xls"
+            | "ods"
+            | "csv"
+            | "rtf"
+    )
+}
+
 pub fn extract(path: &Path, ext: &str) -> Result<Extracted, String> {
     let size = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
     if size > MAX_FILE_BYTES {

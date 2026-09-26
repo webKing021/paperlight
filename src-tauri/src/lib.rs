@@ -89,6 +89,8 @@ pub fn run() {
             commands::reset_index,
             commands::storage_insights,
             commands::find_duplicates,
+            commands::list_formats,
+            commands::set_formats,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Paperlight");

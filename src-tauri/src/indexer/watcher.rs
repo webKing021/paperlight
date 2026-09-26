@@ -26,7 +26,7 @@ use rusqlite::Transaction;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::filters::{is_other_file, Exclusions};
+use super::filters::{is_other_file, Exclusions, Formats};
 use super::scanner::{to_record, ScanMode};
 use super::{priority, spawn_scan};
 use crate::db::files::{self, FileRecord, Indexed};
@@ -78,11 +78,15 @@ pub fn restart(app: &AppHandle) -> AppResult<()> {
     let mut slot = lock(&state.watch);
     *slot = None; // stop the previous watcher before planning a new one
 
-    let (root_list, patterns) = {
+    let (root_list, patterns, formats) = {
         let conn = state.db.reader();
-        (roots::list_roots(&conn)?, roots::list_exclusions(&conn)?)
+        (
+            roots::list_roots(&conn)?,
+            roots::list_exclusions(&conn)?,
+            Formats::load(&conn)?,
+        )
     };
-    let scope = Arc::new(Scope::new(root_list, Exclusions::new(&patterns)));
+    let scope = Arc::new(Scope::new(root_list, Exclusions::new(&patterns), formats));
 
     let (tx, rx) = mpsc::channel();
     let filter = Arc::clone(&scope);
@@ -356,13 +360,15 @@ impl Applied {
 pub struct Scope {
     roots: Vec<Root>,
     ex: Exclusions,
+    formats: Formats,
 }
 
 impl Scope {
-    pub fn new(roots: Vec<Root>, ex: Exclusions) -> Self {
+    pub fn new(roots: Vec<Root>, ex: Exclusions, formats: Formats) -> Self {
         Self {
             roots: roots.into_iter().filter(|r| r.enabled).collect(),
             ex,
+            formats,
         }
     }
 
@@ -458,7 +464,7 @@ impl Applier<'_> {
         if let Some(row) = files::find_by_path(tx, &from_s)? {
             // A document was renamed. Same row, if it is still a document we track.
             let record = (!self.scope.excluded(to))
-                .then(|| read_record(to))
+                .then(|| read_record(to, &self.scope.formats))
                 .flatten();
             match record {
                 Some(record) if self.scope.root_id(&record.path).is_some() => {
@@ -526,7 +532,7 @@ impl Applier<'_> {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        if let Some(record) = to_record(path, name, || Some(md)) {
+        if let Some(record) = to_record(path, name, &self.scope.formats, || Some(md)) {
             self.place(tx, record, b)?;
         }
         Ok(())
@@ -567,7 +573,9 @@ impl Applier<'_> {
             }
             if entry.file_type().is_file() {
                 let name = entry.file_name().to_string_lossy().into_owned();
-                if let Some(record) = to_record(&path, name, || entry.metadata().ok()) {
+                if let Some(record) =
+                    to_record(&path, name, &self.scope.formats, || entry.metadata().ok())
+                {
                     found.push(record);
                 }
             }
@@ -576,9 +584,9 @@ impl Applier<'_> {
     }
 }
 
-fn read_record(path: &Path) -> Option<FileRecord> {
+fn read_record(path: &Path, formats: &Formats) -> Option<FileRecord> {
     let name = path.file_name()?.to_string_lossy().into_owned();
-    to_record(path, name, || fs::metadata(path).ok())
+    to_record(path, name, formats, || fs::metadata(path).ok())
 }
 
 #[cfg(test)]
@@ -612,6 +620,7 @@ mod tests {
             let scope = Scope::new(
                 roots::list_roots(&db.reader()).unwrap(),
                 Exclusions::new(&["node_modules"]),
+                Formats::default(),
             );
             Self {
                 _tmp: tmp,

@@ -37,6 +37,18 @@ export interface Overview {
   watching: number | null;
   /** Documents whose text is still waiting to be read. */
   contentPending: number;
+  /** Extensions the user chose not to index. */
+  disabledFormats: string[];
+}
+
+export interface FormatInfo {
+  ext: string;
+  kind: FileKind;
+  enabled: boolean;
+  /** Documents of this format in the index. */
+  count: number;
+  /** Whether the text inside is read (otherwise found by name only). */
+  readsText: boolean;
 }
 
 export interface IndexChange {
@@ -195,6 +207,9 @@ export const api = {
   resetIndex: () => invoke<void>("reset_index"),
   storageInsights: () => invoke<StorageInsights>("storage_insights"),
   findDuplicates: () => invoke<DupGroup[]>("find_duplicates"),
+  listFormats: () => invoke<FormatInfo[]>("list_formats"),
+  /** Resolves to the number of documents removed from the index. */
+  setFormats: (disabled: string[]) => invoke<number>("set_formats", { disabled }),
 };
 
 export const events = {
