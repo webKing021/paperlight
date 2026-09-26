@@ -12,6 +12,8 @@ pub struct AppState {
     pub watch: Mutex<Option<Watch>>,
     /// Wakes the background text reader.
     pub content_wake: Mutex<Option<Sender<()>>>,
+    /// Held while duplicates are being checked, so two checks never read the same files.
+    pub dupes: Mutex<()>,
 }
 
 impl AppState {
@@ -22,6 +24,7 @@ impl AppState {
             cancel: AtomicBool::new(false),
             watch: Mutex::new(None),
             content_wake: Mutex::new(None),
+            dupes: Mutex::new(()),
         }
     }
 }

@@ -56,6 +56,18 @@ export async function toggleTag(row: FileRow, tagId: number) {
   }
 }
 
+/** Stops indexing a folder; its documents leave Paperlight (nothing on disk changes). */
+export async function excludeFolder(path: string) {
+  try {
+    const removed = await api.addExclusion(path);
+    const docs = removed === 1 ? "1 document" : `${removed.toLocaleString()} documents`;
+    toast(`Excluded ${path}: ${docs} removed from Paperlight. Undo in Settings.`);
+    touched();
+  } catch (e) {
+    toast(String(e), "error");
+  }
+}
+
 /** Creates a tag (or reuses one with that name) and puts it on `row`. */
 export async function tagWithNew(row: FileRow, name: string) {
   try {

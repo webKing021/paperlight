@@ -7,6 +7,7 @@ import { FILE_KINDS } from "../lib/fileKinds";
 import { formatDateTime, formatRelative, formatSize } from "../lib/format";
 import { useIndex } from "../stores";
 import { useUi } from "../stores/ui";
+import { FolderChooser } from "./FolderChooser";
 import { PdfPreview } from "./PdfPreview";
 import { TagDot } from "./TagDot";
 
@@ -25,6 +26,8 @@ export function DetailsPane() {
   const revision = useIndex((s) => s.revision);
   const tags = useIndex((s) => s.tags);
   const [details, setDetails] = useState<FileDetails | null>(null);
+  const [excluding, setExcluding] = useState(false);
+  useEffect(() => setExcluding(false), [selectedId]);
 
   useEffect(() => {
     if (selectedId === null) {
@@ -119,6 +122,21 @@ export function DetailsPane() {
               >
                 {file.dir}
               </button>
+              <button
+                type="button"
+                onClick={() => setExcluding((v) => !v)}
+                className="mt-0.5 block text-[11.5px] text-pencil hover:text-ink"
+              >
+                {excluding ? "Cancel" : "Exclude folder…"}
+              </button>
+              {excluding && (
+                <div className="-mx-2.5 mt-1 rounded-md border border-line bg-paper py-1">
+                  <p className="px-2.5 pb-1 text-[11px] leading-snug text-pencil">
+                    Stop indexing which folder? Nothing on disk changes.
+                  </p>
+                  <FolderChooser dir={file.dir} onDone={() => setExcluding(false)} />
+                </div>
+              )}
             </Field>
             <Field label="Modified">{formatDateTime(file.modifiedAt)}</Field>
             <Field label="Created">{formatDateTime(file.createdAt)}</Field>

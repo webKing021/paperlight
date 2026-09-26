@@ -10,6 +10,8 @@ export type View =
   | { type: "opened" }
   | { type: "favourites" }
   | { type: "duplicates" }
+  | { type: "storage" }
+  | { type: "settings" }
   | { type: "kind"; kind: FileKind }
   | { type: "tag"; id: number };
 

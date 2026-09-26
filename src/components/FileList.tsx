@@ -1,6 +1,16 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
-import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, FolderOpen, Star } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  Check,
+  Copy,
+  ExternalLink,
+  FolderOpen,
+  FolderX,
+  Star,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -22,6 +32,7 @@ import { FILE_KINDS } from "../lib/fileKinds";
 import { formatDateTime, formatRelative, formatSize } from "../lib/format";
 import { useIndex } from "../stores";
 import { useUi, type Sort } from "../stores/ui";
+import { FolderChooser } from "./FolderChooser";
 import { TagDot } from "./TagDot";
 
 const PAGE_SIZE = 200;
@@ -418,6 +429,7 @@ function IconButton({
 
 function ContextMenu({ menu, tags, onClose }: { menu: MenuState; tags: Tag[]; onClose: () => void }) {
   const [newTag, setNewTag] = useState("");
+  const [excluding, setExcluding] = useState(false);
   const { row } = menu;
 
   useEffect(() => {
@@ -441,13 +453,41 @@ function ContextMenu({ menu, tags, onClose }: { menu: MenuState; tags: Tag[]; on
   };
 
   // Keep the menu inside the window.
-  const height = 190 + Math.min(tags.length, 8) * 30;
+  const height = 222 + Math.min(tags.length, 8) * 30;
   const x = Math.min(menu.x, window.innerWidth - 240);
   const y = Math.min(menu.y, window.innerHeight - height);
 
+  const frame =
+    "fixed z-50 rounded-md border border-line-strong bg-sheet p-1 shadow-[0_10px_30px_-12px_rgba(28,27,24,0.35)]";
+
+  if (excluding) {
+    return (
+      <div
+        className={clsx(frame, "w-80")}
+        style={{ left: Math.min(menu.x, window.innerWidth - 336), top: Math.max(8, y) }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={() => setExcluding(false)}
+          className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[12.5px] font-medium text-ink hover:bg-hover"
+        >
+          <ArrowLeft className="size-3.5 text-graphite" />
+          Stop indexing a folder
+        </button>
+        <p className="px-2.5 pb-1.5 text-[11.5px] leading-snug text-pencil">
+          Its documents leave Paperlight. Nothing on disk changes; undo in Settings.
+        </p>
+        <div className="border-t border-line pt-1">
+          <FolderChooser dir={row.dir} onDone={onClose} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className="fixed z-50 w-56 rounded-md border border-line-strong bg-sheet p-1 shadow-[0_10px_30px_-12px_rgba(28,27,24,0.35)]"
+      className={clsx(frame, "w-56")}
       style={{ left: x, top: Math.max(8, y) }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -466,6 +506,9 @@ function ContextMenu({ menu, tags, onClose }: { menu: MenuState; tags: Tag[]; on
         onClick={run(() => toggleFavourite(row))}
       >
         {row.isFavourite ? "Remove favourite" : "Add to favourites"}
+      </MenuItem>
+      <MenuItem icon={<FolderX className="size-3.5" />} onClick={() => setExcluding(true)}>
+        Exclude folder…
       </MenuItem>
 
       <div className="my-1 border-t border-line" />

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { lazy, Suspense, useEffect, useMemo, type ComponentType } from "react";
 import { DetailsPane } from "./components/DetailsPane";
 import { FileList, type Fetcher } from "./components/FileList";
 import { Onboarding } from "./components/Onboarding";
@@ -14,13 +14,22 @@ import { useApplyTheme } from "./lib/useTheme";
 import { useIndex, wireIndexEvents } from "./stores";
 import { useUi, type Sort, type View } from "./stores/ui";
 
+// Report pages are loaded on first visit, keeping the startup bundle small.
+const PAGES = {
+  duplicates: lazy(() => import("./components/DuplicatesView")),
+  storage: lazy(() => import("./components/StorageView")),
+  settings: lazy(() => import("./components/SettingsView")),
+};
+
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 
 interface ViewConfig {
   title: string;
-  /** Filter shared by browsing and searching; `null` = view not available yet. */
+  /** Filter shared by browsing and searching; `null` = not a document list. */
   filter: ViewFilter | null;
+  /** Full-page view shown instead of a document list (when not searching). */
+  page?: ComponentType;
   /** Fixed sort for views whose order is their point (e.g. recently opened). */
   sort?: Sort;
   emptyTitle: string;
@@ -76,11 +85,14 @@ function viewConfig(view: View, tags: Tag[]): ViewConfig {
       };
     }
     case "duplicates":
+    case "storage":
+    case "settings":
       return {
-        title: "Duplicates",
+        title: "",
         filter: null,
-        emptyTitle: "Duplicates",
-        emptyHint: "Paperlight will spot identical copies of the same document. Coming soon.",
+        page: PAGES[view.type],
+        emptyTitle: "",
+        emptyHint: "",
       };
   }
 }
@@ -110,7 +122,7 @@ export default function App() {
 
   const list = useMemo(() => {
     if (text) {
-      // Searching works in every view; views that aren't built yet search everything.
+      // Searching works in every view; pages that aren't document lists search everything.
       const filter = config.filter ?? {};
       const fetcher: Fetcher = (offset, limit) =>
         api.searchFiles({ text, ...filter, offset, limit });
@@ -167,15 +179,14 @@ export default function App() {
                 sort={list.sortable ? userSort : undefined}
                 onSort={list.sortable ? onSort : undefined}
               />
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
-                <p className="text-[14px] font-medium text-ink">{config.emptyTitle}</p>
-                <p className="max-w-xs text-[12.5px] text-graphite">{config.emptyHint}</p>
-              </div>
-            )}
+            ) : config.page ? (
+              <Suspense fallback={null}>
+                <config.page />
+              </Suspense>
+            ) : null}
           </section>
         </main>
-        {detailsOpen && !firstRun && <DetailsPane />}
+        {detailsOpen && !firstRun && view.type !== "settings" && <DetailsPane />}
       </div>
       <StatusBar />
       <Toasts />
