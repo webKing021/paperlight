@@ -91,11 +91,12 @@ pub fn insert_batch(
     Ok(())
 }
 
-/// Refreshes files whose size, modified time or name (case) changed.
+/// Rewrites known rows from fresh records (changed metadata, renames, moves). Keeping the row
+/// id keeps everything attached to it: favourites, open history and, later, tags.
 pub fn update_batch(tx: &Transaction, now: i64, records: &[(i64, FileRecord)]) -> AppResult<()> {
     let mut stmt = tx.prepare_cached(
-        "UPDATE files SET path = ?2, name = ?3, dir = ?4, size = ?5, created_at = ?6,
-                          modified_at = ?7, last_seen_at = ?8
+        "UPDATE files SET path = ?2, name = ?3, ext = ?4, kind = ?5, dir = ?6, size = ?7,
+                          created_at = ?8, modified_at = ?9, last_seen_at = ?10
          WHERE id = ?1",
     )?;
     for (id, f) in records {
@@ -103,6 +104,8 @@ pub fn update_batch(tx: &Transaction, now: i64, records: &[(i64, FileRecord)]) -
             id,
             f.path,
             f.name,
+            f.ext,
+            f.kind,
             f.dir,
             f.size,
             f.created_at,
@@ -113,20 +116,74 @@ pub fn update_batch(tx: &Transaction, now: i64, records: &[(i64, FileRecord)]) -
     Ok(())
 }
 
-/// Deletes rows by id (files that no longer exist on disk).
-pub fn delete_ids(conn: &mut Connection, ids: &[i64]) -> AppResult<usize> {
-    if ids.is_empty() {
-        return Ok(0);
-    }
-    let tx = conn.transaction()?;
+/// Minimal view of an indexed file, used by the live watcher.
+#[derive(Debug, Clone)]
+pub struct Indexed {
+    pub id: i64,
+    pub name: String,
+    pub size: i64,
+    pub modified_at: Option<i64>,
+}
+
+fn indexed_from_row(r: &Row) -> rusqlite::Result<Indexed> {
+    Ok(Indexed {
+        id: r.get(0)?,
+        name: r.get(1)?,
+        size: r.get(2)?,
+        modified_at: r.get(3)?,
+    })
+}
+
+pub fn find_by_path(conn: &Connection, path: &str) -> AppResult<Option<Indexed>> {
+    Ok(conn
+        .query_row(
+            "SELECT id, name, size, modified_at FROM files WHERE path = ?1",
+            [path],
+            indexed_from_row,
+        )
+        .optional()?)
+}
+
+/// Bounds selecting every path strictly inside `dir`: `dir\` <= path < `dir]` (`]` sorts right
+/// after `\`). The column's NOCASE collation makes this an index range scan.
+fn prefix_bounds(dir: &str) -> (String, String) {
+    let dir = dir.trim_end_matches('\\');
+    (format!("{dir}\\"), format!("{dir}]"))
+}
+
+pub fn files_under(conn: &Connection, dir: &str) -> AppResult<Vec<Indexed>> {
+    let (lo, hi) = prefix_bounds(dir);
+    let mut stmt = conn.prepare_cached(
+        "SELECT id, name, size, modified_at FROM files WHERE path >= ?1 AND path < ?2",
+    )?;
+    let rows = stmt.query_map([lo, hi], indexed_from_row)?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+/// A folder was renamed or moved: rewrite the paths of everything inside it, keeping ids.
+/// (`substr(dir, cut)` is empty for files directly inside `from`, so their dir becomes `to`.)
+pub fn move_prefix(conn: &Connection, from: &str, to: &str) -> AppResult<usize> {
+    let from = from.trim_end_matches('\\');
+    let to = to.trim_end_matches('\\');
+    let (lo, hi) = prefix_bounds(from);
+    let cut = from.chars().count() as i64 + 1;
+    Ok(conn.execute(
+        "UPDATE files SET
+             path = ?3 || substr(path, ?4),
+             dir  = ?3 || substr(dir, ?4)
+         WHERE path >= ?1 AND path < ?2",
+        params![lo, hi, to, cut],
+    )?)
+}
+
+/// Deletes rows by id (files that no longer exist on disk). Call inside a transaction when
+/// deleting many.
+pub fn delete_ids(conn: &Connection, ids: &[i64]) -> AppResult<usize> {
+    let mut stmt = conn.prepare_cached("DELETE FROM files WHERE id = ?1")?;
     let mut removed = 0;
-    {
-        let mut stmt = tx.prepare_cached("DELETE FROM files WHERE id = ?1")?;
-        for id in ids {
-            removed += stmt.execute([id])?;
-        }
+    for id in ids {
+        removed += stmt.execute([id])?;
     }
-    tx.commit()?;
     Ok(removed)
 }
 

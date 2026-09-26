@@ -11,6 +11,7 @@ use crate::db::roots::{self, Root};
 use crate::error::{AppError, AppResult};
 use crate::indexer;
 use crate::indexer::scanner::ScanMode;
+use crate::indexer::watcher;
 use crate::search::{self, SearchQuery};
 use crate::state::AppState;
 
@@ -21,16 +22,19 @@ pub struct Overview {
     pub roots: Vec<Root>,
     pub last_scan_at: Option<i64>,
     pub scanning: bool,
+    /// Number of folders being watched live, or `None` if not watching.
+    pub watching: Option<usize>,
 }
 
 #[tauri::command]
-pub fn get_overview(state: State<'_, AppState>) -> AppResult<Overview> {
+pub fn get_overview(app: AppHandle, state: State<'_, AppState>) -> AppResult<Overview> {
     let conn = state.db.reader();
     Ok(Overview {
         stats: files::stats(&conn)?,
         roots: roots::list_roots(&conn)?,
         last_scan_at: roots::get_setting(&conn, "last_scan_at")?.and_then(|v| v.parse().ok()),
         scanning: state.scanning.load(Ordering::SeqCst),
+        watching: watcher::watched_locations(&app),
     })
 }
 
@@ -50,7 +54,7 @@ fn existing_path(state: &AppState, id: i64) -> AppResult<String> {
     let path = files::path_of(&state.db.reader(), id)?
         .ok_or_else(|| AppError::msg("This document is no longer in the index."))?;
     if !std::path::Path::new(&path).exists() {
-        files::delete_ids(&mut state.db.writer(), &[id])?;
+        files::delete_ids(&state.db.writer(), &[id])?;
         return Err(AppError::msg(
             "This file was moved or deleted. It has been removed from Paperlight.",
         ));
@@ -74,18 +78,29 @@ pub fn reveal_file(state: State<'_, AppState>, id: i64) -> AppResult<()> {
 }
 
 #[tauri::command]
-pub fn add_root(state: State<'_, AppState>, path: String) -> AppResult<Root> {
-    roots::add_root(&mut state.db.writer(), &path)
+pub fn add_root(app: AppHandle, state: State<'_, AppState>, path: String) -> AppResult<Root> {
+    let root = roots::add_root(&mut state.db.writer(), &path)?;
+    watcher::refresh(&app);
+    Ok(root)
 }
 
 #[tauri::command]
-pub fn remove_root(state: State<'_, AppState>, id: i64) -> AppResult<()> {
-    roots::remove_root(&state.db.writer(), id)
+pub fn remove_root(app: AppHandle, state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    roots::remove_root(&state.db.writer(), id)?;
+    watcher::refresh(&app);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn set_root_enabled(state: State<'_, AppState>, id: i64, enabled: bool) -> AppResult<()> {
-    roots::set_root_enabled(&state.db.writer(), id, enabled)
+pub fn set_root_enabled(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+    enabled: bool,
+) -> AppResult<()> {
+    roots::set_root_enabled(&state.db.writer(), id, enabled)?;
+    watcher::refresh(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -94,13 +109,21 @@ pub fn list_exclusions(state: State<'_, AppState>) -> AppResult<Vec<String>> {
 }
 
 #[tauri::command]
-pub fn add_exclusion(state: State<'_, AppState>, pattern: String) -> AppResult<()> {
-    roots::add_exclusion(&state.db.writer(), &pattern)
+pub fn add_exclusion(app: AppHandle, state: State<'_, AppState>, pattern: String) -> AppResult<()> {
+    roots::add_exclusion(&state.db.writer(), &pattern)?;
+    watcher::refresh(&app);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn remove_exclusion(state: State<'_, AppState>, pattern: String) -> AppResult<()> {
-    roots::remove_exclusion(&state.db.writer(), &pattern)
+pub fn remove_exclusion(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    pattern: String,
+) -> AppResult<()> {
+    roots::remove_exclusion(&state.db.writer(), &pattern)?;
+    watcher::refresh(&app);
+    Ok(())
 }
 
 /// A scan the user asked for runs at full speed. Returns `false` if one is already running.

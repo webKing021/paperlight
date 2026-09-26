@@ -79,6 +79,11 @@ export function wireIndexEvents() {
     }));
     refresh();
   });
+  // Live changes from the file watcher: refresh counts and visible lists.
+  events.onIndexChanged(() => {
+    useIndex.setState((s) => ({ revision: s.revision + 1 }));
+    refresh();
+  });
   events.onScanError((message) => {
     useIndex.setState({ scanning: false, background: false, progress: null, error: message });
     refresh();
