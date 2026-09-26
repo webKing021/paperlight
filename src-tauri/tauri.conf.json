@@ -10,18 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "label": "main",
-        "title": "Paperlight",
-        "width": 1200,
-        "height": 780,
-        "minWidth": 900,
-        "minHeight": 560,
-        "center": true,
-        "backgroundColor": "#F5F3EE"
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self'; worker-src 'self' blob:; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src ipc: http://ipc.localhost"
     }

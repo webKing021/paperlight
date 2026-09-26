@@ -10,6 +10,17 @@ export function Onboarding() {
   const refresh = useIndex((s) => s.refresh);
   const startScan = useIndex((s) => s.startScan);
   const [error, setError] = useState<string | null>(null);
+  const [autostart, setAutostart] = useState(true);
+  const hotkey = useIndex((s) => s.shell?.hotkey);
+
+  const begin = async () => {
+    try {
+      await api.setAutostart(autostart);
+    } catch {
+      // Not fatal: can be changed later from the tray.
+    }
+    startScan();
+  };
 
   const addFolder = async () => {
     setError(null);
@@ -93,10 +104,26 @@ export function Onboarding() {
           Windows, Program Files, AppData, the Recycle Bin and developer folders are skipped.
         </p>
 
+        <label className="mt-6 flex cursor-pointer items-start gap-3 text-[13px] text-ink-2">
+          <input
+            type="checkbox"
+            checked={autostart}
+            onChange={(e) => setAutostart(e.target.checked)}
+            className="mt-0.5 size-4 accent-[var(--ink)]"
+          />
+          <span>
+            Start with Windows and keep watching from the tray
+            <span className="block text-[12px] text-pencil">
+              Uses a few MB in the background, so new and moved files are always found.
+              {hotkey && ` Press ${hotkey} anywhere to search.`}
+            </span>
+          </span>
+        </label>
+
         <button
           type="button"
           disabled={roots.length === 0}
-          onClick={startScan}
+          onClick={begin}
           className="group mt-8 flex h-10 items-center gap-2 rounded-md bg-ink px-5 text-[13.5px] font-medium text-on-ink transition-opacity hover:opacity-90 disabled:opacity-30"
         >
           Start indexing

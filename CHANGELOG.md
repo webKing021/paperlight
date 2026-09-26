@@ -5,6 +5,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added: Milestone 7, always available
+- Global quick search: Alt+Space (falls back to Ctrl+Shift+Space or Ctrl+Alt+P if taken)
+  opens a small launcher from any app. Recently opened (or changed) files appear
+  instantly; type to search names, folders and text. ↵ opens, Ctrl+↵ shows in folder,
+  ⇧+↵ opens Paperlight, Esc or clicking away closes it.
+- Tray icon with Open, Quick search, Rescan, Start with Windows and Quit.
+- Closing the window keeps Paperlight in the tray and **destroys the web UI**, so in the
+  background it is only the Rust core (about 6 MB measured), still watching files. The
+  launcher is created on first use and freed after 10 idle minutes.
+- Optional start with Windows (asked on the first-run screen, toggle in the tray); starts
+  hidden in the tray.
+- Single instance: launching Paperlight again brings the running one forward.
+- Launcher uses native Windows 11 rounded corners and shadow; base styles moved into
+  @layer base so component styles always win.
+
 ### Added: Milestone 6, details and preview
 - Details panel (toggle with the header button or Ctrl+I; remembered): real first-page
   preview for PDFs, a paper-style text card for Word / Excel / PowerPoint, and name,
