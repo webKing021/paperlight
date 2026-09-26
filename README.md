@@ -1,3 +1,5 @@
+<p><img src="public/paperlight.svg" width="64" alt="Paperlight"></p>
+
 # Paperlight
 
 > A spotlight for every document on your PC.

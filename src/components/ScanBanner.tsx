@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import { useIndex } from "../stores";
 
 export function ScanBanner() {
@@ -10,21 +9,22 @@ export function ScanBanner() {
   if (!scanning || background) return null;
 
   return (
-    <div className="relative shrink-0 overflow-hidden border-b border-line bg-accent-soft/60">
-      <div className="flex items-center gap-3 px-5 py-2.5">
-        <Loader2 className="size-4 shrink-0 animate-spin text-accent" />
+    <div className="relative shrink-0 overflow-hidden border-b border-line bg-sheet">
+      <div className="flex items-center gap-4 px-5 py-2.5">
         <div className="min-w-0 flex-1">
-          <div className="text-[12.5px] font-medium">
-            Indexing{progress ? ` ${progress.root}` : "…"}
+          <div className="flex items-baseline gap-3">
+            <span className="text-[13px] font-medium text-ink">
+              Indexing {progress ? progress.root : "…"}
+            </span>
             {progress && (
-              <span className="ml-2 font-normal text-muted tabular-nums">
-                {progress.filesFound.toLocaleString()} documents ·{" "}
-                {progress.dirsScanned.toLocaleString()} folders
+              <span className="font-mono text-[11px] tabular-nums text-graphite">
+                {progress.filesFound.toLocaleString()} docs · {progress.dirsScanned.toLocaleString()}{" "}
+                folders
               </span>
             )}
           </div>
           {progress && (
-            <div className="truncate text-[11.5px] text-faint" title={progress.currentDir}>
+            <div className="truncate font-mono text-[10.5px] text-pencil" title={progress.currentDir}>
               {progress.currentDir}
             </div>
           )}
@@ -32,13 +32,13 @@ export function ScanBanner() {
         <button
           type="button"
           onClick={cancelScan}
-          className="rounded-md px-2.5 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-fg"
+          className="rounded px-2.5 py-1 text-[12px] text-graphite hover:bg-hover hover:text-ink"
         >
           Stop
         </button>
       </div>
-      <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden">
-        <div className="h-full w-1/3 animate-[scan_1.4s_ease-in-out_infinite] rounded-full bg-accent" />
+      <div className="absolute inset-x-0 bottom-0 h-[2px] overflow-hidden">
+        <div className="h-full w-1/5 animate-[runner_1.6s_ease-in-out_infinite] bg-lamp" />
       </div>
     </div>
   );

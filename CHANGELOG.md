@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed: brand identity
+- New mark: geometric "P", with an ink stem and a lamp-amber half-disc bowl; new app icons.
+- Warm paper and ink palette with one lamp-amber accent; warm charcoal dark theme.
+- IBM Plex Sans + IBM Plex Mono replace Inter (bundled locally, no network).
+- File types shown as label-ink tabs with mono extensions instead of pastel chips.
+- Editorial first-run screen, ink primary button, amber selection edge, inverted toasts,
+  mono status line; removed sparkle icons, pastel badges, glows and pill highlights.
+
 ### Added — Milestone 2: search
 - Ranked search over names and folders: trigram index for 3+ letter terms, LIKE for short
   ones ("cv", "v3"), multi-word AND, name matches outrank folder matches, whole-name and
