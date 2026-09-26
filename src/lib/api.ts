@@ -33,6 +33,8 @@ export interface FileRow {
   createdAt: number | null;
   modifiedAt: number | null;
   isFavourite: boolean;
+  openCount: number;
+  lastOpenedAt: number | null;
 }
 
 export interface Page {
@@ -48,6 +50,14 @@ export interface ListQuery {
   modifiedAfter?: number;
   sort?: SortKey;
   ascending?: boolean;
+  offset?: number;
+  limit?: number;
+}
+
+export interface SearchQuery {
+  text: string;
+  kind?: FileKind;
+  modifiedAfter?: number;
   offset?: number;
   limit?: number;
 }
@@ -73,6 +83,9 @@ export interface ScanSummary {
 export const api = {
   getOverview: () => invoke<Overview>("get_overview"),
   listFiles: (query: ListQuery) => invoke<Page>("list_files", { query }),
+  searchFiles: (query: SearchQuery) => invoke<Page>("search_files", { query }),
+  openFile: (id: number) => invoke<void>("open_file", { id }),
+  revealFile: (id: number) => invoke<void>("reveal_file", { id }),
   addRoot: (path: string) => invoke<Root>("add_root", { path }),
   removeRoot: (id: number) => invoke<void>("remove_root", { id }),
   setRootEnabled: (id: number, enabled: boolean) =>

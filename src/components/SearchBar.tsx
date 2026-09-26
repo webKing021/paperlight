@@ -35,7 +35,7 @@ export function SearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-          placeholder="Search documents by name, folder or content…"
+          placeholder="Search documents by name or folder…"
           spellCheck={false}
           className="h-full flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-faint"
         />

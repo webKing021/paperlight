@@ -436,5 +436,22 @@ mod tests {
         println!("background rescan: {rescan:?}");
         println!("stats:             {stats:?}");
         println!("db size:           {} KB", db_size / 1024);
+        for text in ["resume", "invoice", "sem", "cv", "reprot", "dbms lab"] {
+            let t = Instant::now();
+            let page = crate::search::search(
+                &db.reader(),
+                &crate::search::SearchQuery {
+                    text: text.into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let top: Vec<&str> = page.items.iter().take(3).map(|r| r.name.as_str()).collect();
+            println!(
+                "search {text:>10}: {:>4} hits in {:>5.2} ms  top: {top:?}",
+                page.total,
+                t.elapsed().as_secs_f64() * 1000.0
+            );
+        }
     }
 }

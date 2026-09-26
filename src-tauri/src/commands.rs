@@ -6,10 +6,12 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 
 use crate::db::files::{self, ListQuery, Page, Stats};
+use crate::db::now_ms;
 use crate::db::roots::{self, Root};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::indexer;
 use crate::indexer::scanner::ScanMode;
+use crate::search::{self, SearchQuery};
 use crate::state::AppState;
 
 #[derive(Serialize)]
@@ -35,6 +37,40 @@ pub fn get_overview(state: State<'_, AppState>) -> AppResult<Overview> {
 #[tauri::command]
 pub fn list_files(state: State<'_, AppState>, query: ListQuery) -> AppResult<Page> {
     files::list_files(&state.db.reader(), &query)
+}
+
+#[tauri::command]
+pub fn search_files(state: State<'_, AppState>, query: SearchQuery) -> AppResult<Page> {
+    search::search(&state.db.reader(), &query)
+}
+
+/// Looks up an indexed document by id. The UI can only ever open files that are in the index,
+/// never arbitrary paths. A file that vanished since the last sync is dropped from the index.
+fn existing_path(state: &AppState, id: i64) -> AppResult<String> {
+    let path = files::path_of(&state.db.reader(), id)?
+        .ok_or_else(|| AppError::msg("This document is no longer in the index."))?;
+    if !std::path::Path::new(&path).exists() {
+        files::delete_ids(&mut state.db.writer(), &[id])?;
+        return Err(AppError::msg(
+            "This file was moved or deleted. It has been removed from Paperlight.",
+        ));
+    }
+    Ok(path)
+}
+
+#[tauri::command]
+pub fn open_file(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    let path = existing_path(&state, id)?;
+    tauri_plugin_opener::open_path(&path, None::<&str>)
+        .map_err(|e| AppError::msg(format!("Windows could not open the file: {e}")))?;
+    files::record_open(&state.db.writer(), id, now_ms())
+}
+
+#[tauri::command]
+pub fn reveal_file(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    let path = existing_path(&state, id)?;
+    tauri_plugin_opener::reveal_item_in_dir(&path)
+        .map_err(|e| AppError::msg(format!("Could not open the folder: {e}")))
 }
 
 #[tauri::command]
