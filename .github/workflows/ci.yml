@@ -23,6 +23,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # Only main saves a cache; dev and pull requests reuse it (keeps the 10 GB quota free).
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install frontend dependencies
         run: npm ci

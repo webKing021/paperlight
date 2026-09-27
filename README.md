@@ -49,6 +49,8 @@ they change, and finds any of them in milliseconds.
 - **Organise without touching files.** Favourites, tags, recently opened, previews.
 - **Duplicates and storage.** Find byte-identical copies and see what takes space.
 - **You choose what's indexed.** Pick the file formats and folders; skip the rest.
+- **Updates itself, if you want.** New versions install from inside the app in a few seconds,
+  keeping your index, favourites and tags. Paperlight works offline either way.
 - **At home on Windows.** A native look, light and dark themes (title bar included) and a
   short welcome that sets everything up on first run.
 
@@ -63,6 +65,10 @@ they change, and finds any of them in milliseconds.
 | ![Choose file formats](docs/screenshots/settings.png) | ![Dark theme](docs/screenshots/dark.png) |
 | **Welcome on first run** | **Set up in a minute** |
 | ![Welcome screen](docs/screenshots/welcome.png) | ![Setup finished: documents found](docs/screenshots/first-scan.png) |
+
+**Updates from inside the app**
+
+![A new version offered inside Paperlight, with what's new](docs/screenshots/update.png)
 
 ## Install
 
