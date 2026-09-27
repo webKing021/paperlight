@@ -189,9 +189,13 @@ Paperlight must feel invisible when you are not using it.
 
 ## 9. Security & privacy
 
-- No network permission at all; Tauri capabilities grant only what each window needs.
+- Works fully offline. The only network request is the optional update check (a signed
+  `latest.json` on GitHub Releases, made by the Rust side; it carries no user data and can be
+  turned off). The UI's CSP allows no connections except to the app itself.
+- Tauri capabilities grant only what each window needs; the UI can open or reveal only files
+  that are in the index (by id), never arbitrary paths or URLs.
 - Paperlight never writes, moves or deletes user files. Only `open`/`reveal` via the OS.
-- Asset-protocol access (for previews) is scoped to the configured roots only.
+- Previews are read by the Rust side and handed over as bytes; the asset protocol is off.
 - DB lives in the user's AppData; "Reset index" in settings wipes it.
 
 ## 10. Repository & workflow
@@ -209,7 +213,7 @@ paperlight/
 - `main` — always stable & buildable; every completed feature lands here.
 - `dev` — working/integration branch.
 - `feature/<name>` — one branch per milestone, branched from `dev`.
-- Flow per feature: `feature/x` → merge (`--no-ff`) into `dev` → verify build → merge `dev` into `main` → push → tag milestone.
+- Flow per feature: `feature/x` → merge (`--no-ff`) into `dev` → verify build → merge `dev` into `main` → push. Releases are tagged `vX.Y.Z` (see CONTRIBUTING.md).
 - Conventional commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`).
 
 ## 11. Milestones (each = one feature branch, merged to `main` when done)
@@ -242,13 +246,3 @@ paperlight/
 | Watcher misses events (buffer overflow on massive copies) | Detect overflow → targeted rescan of that root; periodic light reconcile |
 | Permission-denied folders | Skip silently, count & show in diagnostics |
 | DB growth from content text | Store extracted text only in FTS, cap per-file text (e.g. 2 MB) |
-| Limited C: drive space | Rust toolchain, build cache and VS Build Tools installed on **D:** (see §14) |
-
-## 14. Development environment (this machine)
-
-- C: has ~7 GB free → heavy tooling goes to **D:\DevTools**:
-  - `RUSTUP_HOME=D:\DevTools\rustup`, `CARGO_HOME=D:\DevTools\cargo` (user env vars + PATH)
-  - VS 2022 Build Tools (MSVC v143 + Windows 11 SDK) → install path & shared components on `D:\DevTools\BuildTools`
-    (the Windows SDK itself still lands on C:, ~1–2 GB)
-  - Cargo `target/` lives inside the project on D:
-- Node.js v25 / npm 11 (already installed), Git 2.50, GitHub CLI (`gh`) for repo management.
