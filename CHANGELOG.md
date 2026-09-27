@@ -3,6 +3,11 @@
 All notable changes to Paperlight are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.1] - 2026-09-27
+
+### Fixed
+- The setup file now shows the Paperlight icon instead of the generic installer icon.
+
 ## [1.1.0] - 2026-09-27
 
 ### Added
