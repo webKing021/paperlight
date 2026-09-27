@@ -24,13 +24,7 @@
 
 ![Paperlight overview: a tile per document type, the list below and a PDF preview](docs/screenshots/overview.png)
 
-<!--
-  DEMO VIDEO
-  1. Open this file on github.com and click the pencil (Edit).
-  2. Drag the .mp4 (max 100 MB) onto this spot. GitHub uploads it and inserts a link.
-  3. Put that link on its own line, replacing this comment, and commit.
-  GitHub turns the link into an inline video player.
--->
+[![Watch the Paperlight film](https://img.youtube.com/vi/vAPLSGX4Teg/maxresdefault.jpg)](https://www.youtube.com/watch?v=vAPLSGX4Teg)
 
 ## Why
 
