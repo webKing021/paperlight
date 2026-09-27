@@ -132,6 +132,16 @@
   }
 }
 
+/* A single pass of light across the update card when it appears. */
+@keyframes sheen {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @layer base {
   html,
   body,

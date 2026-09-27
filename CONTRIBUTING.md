@@ -62,12 +62,30 @@ src-tauri/src/
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
 (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
 
+## Releasing (maintainers)
+
+Installed copies update themselves from GitHub Releases, so a release is just a tag:
+
+1. Bump the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`,
+   and move the *Unreleased* notes in `CHANGELOG.md` under `## [x.y.z] - date`.
+2. Merge into `main`, then tag and push: `git tag vx.y.z && git push origin vx.y.z`.
+3. The **Release** workflow builds the installer, signs it with the `TAURI_SIGNING_PRIVATE_KEY`
+   secret and drafts a release with the installer, its `.sig` and `latest.json`. The changelog
+   section becomes the release notes shown in the app.
+4. Check the draft and press **Publish**. From then on every installed Paperlight offers the
+   update on its next check.
+
+Never change the updater public key in `tauri.conf.json` unless you mean to: installed copies
+only accept updates signed with the matching private key.
+
 ## Principles
 
 These are what make Paperlight Paperlight; PRs are reviewed against them.
 
 - **Read-only.** Paperlight never modifies, moves or deletes a user's files.
-- **Private.** No network access, no telemetry.
+- **Private and offline.** No telemetry, and nothing may need the internet to work. The only
+  network use is the optional update check (one small request to GitHub, can be turned off);
+  don't add others.
 - **Light.** No polling timers, no needless scans, near-zero CPU when idle. Heavy UI code is
   lazy-loaded. Measure memory and CPU for anything that runs in the background.
 - **Calm, native design.** Reuse the tokens in `src/index.css` and the shared components

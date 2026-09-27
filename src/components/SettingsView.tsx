@@ -1,13 +1,27 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { open } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
-import { ArrowUpRight, Check, Download, Folder, HardDrive, Moon, Plus, Sun, SunMoon, X } from "lucide-react";
+import {
+  ArrowUpRight,
+  Check,
+  Download,
+  Folder,
+  HardDrive,
+  MessageSquare,
+  Moon,
+  Plus,
+  RefreshCw,
+  Sun,
+  SunMoon,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api, type FormatInfo, type RootInfo, type SettingsInfo } from "../lib/api";
 import { FILE_KINDS, KIND_ORDER } from "../lib/fileKinds";
 import { formatRelative, formatSize } from "../lib/format";
 import { useIndex } from "../stores";
 import { useUi, type ThemeMode } from "../stores/ui";
+import { useUpdates } from "../stores/updates";
 import { FileIcon } from "./FileIcon";
 import { Mark } from "./Mark";
 import { Kbd } from "./SearchBar";
@@ -637,16 +651,17 @@ function About() {
             <ArrowUpRight className="size-3.5" strokeWidth={2} />
           </Button>
         </Row>
+        <Updates />
         <Row
           icon={
             <IconBox>
-              <Download className="size-4" strokeWidth={1.7} />
+              <MessageSquare className="size-4" strokeWidth={1.7} />
             </IconBox>
           }
-          title="Updates and feedback"
-          hint="Download new versions, report a problem or suggest an idea."
+          title="Release notes and feedback"
+          hint="See what changed, report a problem or suggest an idea."
         >
-          <Button onClick={() => visit("releases")}>Releases</Button>
+          <Button onClick={() => visit("releases")}>Release notes</Button>
           <Button onClick={() => visit("issues")}>Report an issue</Button>
           <Button onClick={() => visit("repo")}>
             Source code
@@ -655,6 +670,82 @@ function About() {
         </Row>
       </Card>
     </Section>
+  );
+}
+
+/** Paperlight updates itself from GitHub releases (see stores/updates.ts). */
+function Updates() {
+  const status = useUpdates((s) => s.status);
+  const checkedAt = useUpdates((s) => s.checkedAt);
+  const auto = useUpdates((s) => s.auto);
+  const setAuto = useUpdates((s) => s.setAuto);
+  const checkNow = useUpdates((s) => s.checkNow);
+  const install = useUpdates((s) => s.install);
+  const openDialog = useUpdates((s) => s.openDialog);
+
+  let hint: string;
+  switch (status.state) {
+    case "checking":
+      hint = "Checking for updates…";
+      break;
+    case "current":
+      hint = `You're up to date · checked ${formatRelative(checkedAt)}`;
+      break;
+    case "available":
+      hint = `Paperlight ${status.version} is ready to install. Your index, favourites and tags are kept.`;
+      break;
+    case "downloading":
+      hint = status.total
+        ? `Downloading ${status.version}… ${Math.round((status.received / status.total) * 100)}%`
+        : `Downloading ${status.version}…`;
+      break;
+    case "installing":
+      hint = `Installing ${status.version}. Paperlight will close and reopen by itself.`;
+      break;
+    case "error":
+      hint = status.message;
+      break;
+    default:
+      hint = checkedAt ? `Last checked ${formatRelative(checkedAt)}` : "New versions install from inside the app.";
+  }
+  const busy = status.state === "checking" || status.state === "downloading" || status.state === "installing";
+
+  return (
+    <>
+      <Row
+        icon={
+          <IconBox>
+            <Download className="size-4" strokeWidth={1.7} />
+          </IconBox>
+        }
+        title="Updates"
+        hint={<span className={clsx(status.state === "error" && "text-danger")}>{hint}</span>}
+      >
+        {status.state === "available" ? (
+          <Button
+            tone="primary"
+            onClick={() => {
+              openDialog();
+              install();
+            }}
+          >
+            Update now
+          </Button>
+        ) : (
+          <Button onClick={() => checkNow(true)} disabled={busy}>
+            <RefreshCw className={clsx("size-3.5", status.state === "checking" && "animate-spin")} strokeWidth={2} />
+            Check for updates
+          </Button>
+        )}
+      </Row>
+      <Row
+        title="Check for updates automatically"
+        hint="Paperlight works fully offline; this only looks for new versions. Nothing downloads until you choose Update now."
+        className="pl-[62px]"
+      >
+        <Switch checked={auto} onChange={setAuto} label="Check for updates automatically" />
+      </Row>
+    </>
   );
 }
 
