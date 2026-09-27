@@ -9,6 +9,7 @@ import { Sidebar, SIDEBAR_RAIL, SIDEBAR_WIDTH } from "./components/Sidebar";
 import { SlidePanel } from "./components/SlidePanel";
 import { StatusBar } from "./components/StatusBar";
 import { Toasts } from "./components/Toasts";
+import { UpdateDialog } from "./components/UpdateDialog";
 import { api, type SortKey, type Tag, type ViewFilter } from "./lib/api";
 import { FILE_KINDS } from "./lib/fileKinds";
 import { hideSplash } from "./lib/splash";
@@ -16,6 +17,7 @@ import { useDebounced } from "./lib/useDebounced";
 import { useApplyTheme } from "./lib/useTheme";
 import { useIndex, wireIndexEvents } from "./stores";
 import { useUi, type Sort, type View } from "./stores/ui";
+import { wireUpdates } from "./stores/updates";
 
 // Report pages are loaded on first visit, keeping the startup bundle small.
 const PAGES = {
@@ -105,6 +107,7 @@ function viewConfig(view: View, tags: Tag[]): ViewConfig {
 export default function App() {
   useApplyTheme();
   useEffect(wireIndexEvents, []);
+  useEffect(wireUpdates, []);
 
   const overview = useIndex((s) => s.overview);
   const revision = useIndex((s) => s.revision);
@@ -232,6 +235,7 @@ export default function App() {
         </SlidePanel>
       </div>
       <StatusBar />
+      <UpdateDialog />
       <Toasts />
     </div>
   );

@@ -19,6 +19,10 @@ npm-debug.log*
 Thumbs.db
 *.swp
 
+# Updater signing keys (keep them out of the repo)
+*.key
+*.key.pub
+
 # Env
 .env
 .env.*
