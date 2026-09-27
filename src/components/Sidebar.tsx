@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import {
+  ArrowUp,
   ChartPie,
+  ChevronRight,
   FilePenLine,
   Files,
   History,
@@ -17,9 +19,11 @@ import { api, TAG_COLORS, type Tag } from "../lib/api";
 import { enabledKinds, FILE_KINDS } from "../lib/fileKinds";
 import { useIndex } from "../stores";
 import { sameView, useUi, type View } from "../stores/ui";
+import { useUpdates } from "../stores/updates";
 import { KindGlyph } from "./FileIcon";
 import { Mark } from "./Mark";
 import { TagDot } from "./TagDot";
+import { updateProgress, UpdateRing } from "./UpdateDialog";
 
 /** Width of the sidebar and of its collapsed rail (see App). */
 export const SIDEBAR_WIDTH = 232;
@@ -236,6 +240,7 @@ export function Sidebar() {
         </Section>
       </nav>
       <div className="flex flex-col border-t border-line py-2">
+        <UpdateEntry collapsed={!open} />
         <NavButton
           active={view.type === "settings"}
           onClick={() => setView({ type: "settings" })}
@@ -246,6 +251,51 @@ export function Sidebar() {
         </NavButton>
       </div>
     </aside>
+  );
+}
+
+/** Shown above Settings while a new version is waiting; opens the update dialog. */
+function UpdateEntry({ collapsed }: { collapsed: boolean }) {
+  const status = useUpdates((s) => s.status);
+  const openDialog = useUpdates((s) => s.openDialog);
+  if (!("version" in status)) return null;
+
+  const progress = updateProgress(status);
+  const [title, detail] =
+    status.state === "installing"
+      ? ["Installing update", "Paperlight reopens by itself"]
+      : status.state === "downloading"
+        ? [
+            "Downloading update",
+            progress === null ? "Starting…" : `${Math.round(progress * 100)}% · Paperlight ${status.version}`,
+          ]
+        : ["Update available", `Paperlight ${status.version} is ready`];
+
+  return (
+    <button
+      type="button"
+      onClick={openDialog}
+      title={collapsed ? `${title}: Paperlight ${status.version}` : undefined}
+      className={clsx(
+        "relative mx-2 mb-1.5 flex items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-lg border py-2 pl-1.5 pr-2.5 text-left transition-colors duration-150",
+        "border-lamp/40 bg-lamp-wash/45 hover:bg-lamp-wash/80",
+        "group-data-[collapsed=true]/side:border-transparent group-data-[collapsed=true]/side:bg-transparent group-data-[collapsed=true]/side:hover:bg-hover",
+      )}
+    >
+      <UpdateRing size={28} progress={status.state === "available" ? 1 : progress}>
+        <ArrowUp className="size-3.5 text-ink" strokeWidth={2.4} />
+      </UpdateRing>
+      <span className={clsx("min-w-0 flex-1", FADE)}>
+        <span className="block truncate text-[13px] font-semibold leading-tight text-ink">{title}</span>
+        <span className="mt-0.5 block truncate text-[11.5px] leading-tight tabular-nums text-graphite">{detail}</span>
+      </span>
+      <ChevronRight className={clsx("size-4 shrink-0 text-graphite", FADE)} strokeWidth={1.8} />
+      {/* One pass of light when the card appears, to catch the eye without nagging. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 animate-[sheen_1.4s_ease-in-out_0.6s_2_both] bg-[linear-gradient(105deg,transparent_35%,rgb(255_255_255/0.55)_50%,transparent_65%)] dark:bg-[linear-gradient(105deg,transparent_35%,rgb(255_255_255/0.09)_50%,transparent_65%)]"
+      />
+    </button>
   );
 }
 

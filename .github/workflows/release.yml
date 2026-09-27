@@ -1,0 +1,72 @@
+name: Release
+
+# Pushing a version tag (v1.1.0) builds the signed installer and drafts a GitHub release with
+# it, its signature and latest.json. Installed copies of Paperlight see the update only after
+# the draft is published.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check the tag matches the app version
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match version $version in tauri.conf.json"
+          }
+
+      - name: Release notes from CHANGELOG.md
+        id: notes
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          $notes = @()
+          $inside = $false
+          foreach ($line in Get-Content CHANGELOG.md) {
+            if ($line -match '^## \[') {
+              if ($inside) { break }
+              $inside = $line -match "^## \[$([regex]::Escape($version))\]"
+              continue
+            }
+            if ($inside) { $notes += $line }
+          }
+          if (-not $notes) { throw "CHANGELOG.md has no section for $version" }
+          Add-Content $env:GITHUB_OUTPUT "body<<PAPERLIGHT_NOTES"
+          Add-Content $env:GITHUB_OUTPUT (($notes -join "`n").Trim())
+          Add-Content $env:GITHUB_OUTPUT "PAPERLIGHT_NOTES"
+
+      - name: Build, sign and draft the release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Paperlight ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: true
+          prerelease: false

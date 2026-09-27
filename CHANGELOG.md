@@ -3,6 +3,17 @@
 All notable changes to Paperlight are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] - 2026-09-27
+
+### Added
+- Paperlight updates itself. It looks for a new version on launch (and at most twice a day
+  after that), announces it once in a dialog with the release notes, and keeps an
+  **Update available** card above Settings until you install it. **Update now** downloads the
+  signed installer, installs it and reopens Paperlight, keeping your index, favourites, tags
+  and settings. Nothing is downloaded until you choose to update, and updating is optional:
+  Paperlight still works fully offline.
+- Settings → About: **Check for updates** and a switch to turn automatic checks off.
+
 ## [1.0.0] - 2026-09-27
 
 First release. Paperlight indexes every PDF, Word, Excel and PowerPoint file on the chosen

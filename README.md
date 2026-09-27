@@ -72,9 +72,15 @@ they change, and finds any of them in milliseconds.
 3. The welcome screens walk you through setup: pick the drives or folders to index, choose a
    few preferences and press **Start indexing**. Paperlight is usable while the first scan runs.
 
+You only download the installer once. Updating is optional: when a new version with new
+features comes out, Paperlight tells you and installs it from inside the app (**Update now**),
+keeping your index, favourites and tags. If you don't, it keeps working as it is.
+
 ## Private and light
 
-- **Local only.** No network access, no telemetry, no account.
+- **Works offline.** Paperlight never needs the internet to index, search or open your files.
+  No telemetry, no account. It only goes online to check for a new version, and updating is
+  optional: skip it, or turn the check off in Settings → About.
 - **Read-only.** Your files are never modified, moved or deleted.
 - **Tiny.** ~5 MB installer, ~6 MB of memory in the tray, zero CPU when idle.
 
@@ -89,8 +95,12 @@ they change, and finds any of them in milliseconds.
 ```bash
 npm install
 npm run tauri dev      # run
-npm run tauri build    # installer → src-tauri/target/release/bundle/nsis
+npm run tauri build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
+                       # installer → src-tauri/target/release/bundle/nsis
 ```
+
+Official releases are also signed for the in-app updater, which needs the project's private
+key; the `--config` override above builds an unsigned installer without it.
 
 Needs Node.js 20+, Rust (MSVC) and the Visual Studio C++ Build Tools. Built with
 [Tauri 2](https://tauri.app), Rust, SQLite FTS5 and React.
@@ -101,5 +111,23 @@ Issues and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.
 for [good first issues](https://github.com/webKing021/paperlight/labels/good%20first%20issue).
 If Paperlight saves you time, a star helps others find it.
 
-Made by [webKing021](https://github.com/webKing021). Screenshots show made-up sample documents.
-[MIT](LICENSE) licensed.
+### Contributors
+
+<a href="https://github.com/webKing021/paperlight/graphs/contributors">
+  <img alt="Contributors" src="https://contrib.rocks/image?repo=webKing021/paperlight" />
+</a>
+
+### Star history
+
+<a href="https://star-history.com/#webKing021/paperlight&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=webking021%2Fpaperlight&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=webking021%2Fpaperlight&type=Date" />
+    <img alt="Star history chart" src="https://api.star-history.com/svg?repos=webking021%2Fpaperlight&type=Date" width="600" />
+  </picture>
+</a>
+
+---
+
+Made by [webKing021](https://github.com/webKing021) and [Opus 5.5](https://www.anthropic.com/claude).
+Screenshots show made-up sample documents. [MIT](LICENSE) licensed.
