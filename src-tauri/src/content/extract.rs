@@ -130,8 +130,10 @@ fn zip_xml(path: &Path, text: &mut Collector, wanted: impl Fn(&str) -> bool) -> 
     let mut zip = zip::ZipArchive::new(BufReader::new(file)).map_err(|e| e.to_string())?;
     let mut names: Vec<String> = zip
         .file_names()
+        // An entry whose name can't be decoded is not one of the parts we read.
+        .filter_map(Result::ok)
         .filter(|n| wanted(n))
-        .map(str::to_string)
+        .map(|n| n.into_owned())
         .collect();
     // slide2.xml before slide10.xml
     names.sort_by_key(|n| {
