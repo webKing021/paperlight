@@ -44,6 +44,8 @@ pub struct SearchQuery {
 struct Scored {
     row: FileRow,
     score: f64,
+    /// The words were found in the document's text (it gets a passage when shown).
+    in_text: bool,
 }
 
 pub fn search(conn: &Connection, q: &SearchQuery) -> AppResult<Page> {
@@ -69,24 +71,41 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> AppResult<Page> {
     for row in exact_candidates(conn, &terms, &filter_sql, &filter_args)? {
         if let Some(score) = exact_score(&row, &terms) {
             let score = EXACT_BASE + score + boost(&row, now);
-            results.insert(row.id, Scored { row, score });
+            results.insert(
+                row.id,
+                Scored {
+                    row,
+                    score,
+                    in_text: false,
+                },
+            );
         }
     }
 
     // Text inside documents (words of 2+ letters, prefix-matched: "invoic" finds "invoices").
-    if terms.iter().all(|t| t.chars().count() >= 2) {
-        let hits = content_candidates(conn, &terms, &filter_sql, &filter_args)?;
+    let content_expr = terms
+        .iter()
+        .all(|t| t.chars().count() >= 2)
+        .then(|| content_expr(&terms));
+    if let Some(expr) = &content_expr {
+        let hits = content_candidates(conn, expr, &filter_sql, &filter_args)?;
         let n = hits.len().max(1) as f64;
-        for (rank, (mut row, snippet)) in hits.into_iter().enumerate() {
+        for (rank, row) in hits.into_iter().enumerate() {
             match results.get_mut(&row.id) {
                 Some(hit) => {
                     hit.score += 10.0;
-                    hit.row.snippet = Some(snippet);
+                    hit.in_text = true;
                 }
                 None => {
                     let score = CONTENT_BASE + 10.0 * (1.0 - rank as f64 / n) + boost(&row, now);
-                    row.snippet = Some(snippet);
-                    results.insert(row.id, Scored { row, score });
+                    results.insert(
+                        row.id,
+                        Scored {
+                            row,
+                            score,
+                            in_text: true,
+                        },
+                    );
                 }
             }
         }
@@ -111,7 +130,14 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> AppResult<Page> {
                 }
             };
             let score = fuzzy + boost(&row, now);
-            results.insert(row.id, Scored { row, score });
+            results.insert(
+                row.id,
+                Scored {
+                    row,
+                    score,
+                    in_text: false,
+                },
+            );
         }
     }
 
@@ -123,11 +149,28 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> AppResult<Page> {
     });
     let total = ranked.len() as i64;
     let limit = q.limit.unwrap_or(200).clamp(1, 1000) as usize;
-    let mut items: Vec<FileRow> = ranked
+    let shown: Vec<Scored> = ranked
         .into_iter()
         .skip(offset as usize)
         .take(limit)
-        .map(|s| s.row)
+        .collect();
+    // Passages are only worked out for the rows that are actually returned: each one means
+    // inflating and re-reading that document's text.
+    let with_text: Vec<i64> = shown
+        .iter()
+        .filter(|s| s.in_text)
+        .map(|s| s.row.id)
+        .collect();
+    let mut passages = match &content_expr {
+        Some(expr) => snippets(conn, expr, &with_text)?,
+        None => HashMap::new(),
+    };
+    let mut items: Vec<FileRow> = shown
+        .into_iter()
+        .map(|mut s| {
+            s.row.snippet = passages.remove(&s.row.id);
+            s.row
+        })
         .collect();
     attach_tags(conn, &mut items)?;
     Ok(Page {
@@ -174,29 +217,51 @@ fn exact_candidates(
     query_rows(conn, &sql, &args)
 }
 
-/// Documents whose text contains every term, best first, with a short marked passage.
-fn content_candidates(
-    conn: &Connection,
-    terms: &[String],
-    filter_sql: &str,
-    filter_args: &[Value],
-) -> AppResult<Vec<(FileRow, String)>> {
-    let expr = terms
+/// FTS5 query matching documents whose text contains every term (as a word prefix).
+fn content_expr(terms: &[String]) -> String {
+    terms
         .iter()
         .map(|t| format!("{}*", fts_phrase(t)))
         .collect::<Vec<_>>()
-        .join(" AND ");
-    let mut args = vec![Value::Text(expr)];
+        .join(" AND ")
+}
+
+/// Documents whose text matches `expr`, best first. Ranking reads only the index, never the
+/// stored text.
+fn content_candidates(
+    conn: &Connection,
+    expr: &str,
+    filter_sql: &str,
+    filter_args: &[Value],
+) -> AppResult<Vec<FileRow>> {
+    let mut args = vec![Value::Text(expr.to_string())];
     args.extend_from_slice(filter_args);
     let sql = format!(
-        "SELECT {FILE_COLUMNS}, snippet(content_fts, 0, char(2), char(3), '…', 14)
+        "SELECT {FILE_COLUMNS}
          FROM content_fts JOIN files f ON f.id = content_fts.rowid
          WHERE content_fts MATCH ?{filter_sql}
-         ORDER BY bm25(content_fts) LIMIT {MAX_CONTENT}"
+         ORDER BY content_fts.rank LIMIT {MAX_CONTENT}"
     );
-    let mut stmt = conn.prepare_cached(&sql)?;
+    query_rows(conn, &sql, &args)
+}
+
+/// A short passage around the match for each of `ids`, matched words wrapped in U+0002 … U+0003.
+fn snippets(conn: &Connection, expr: &str, ids: &[i64]) -> AppResult<HashMap<i64, String>> {
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let placeholders = vec!["?"; ids.len()].join(",");
+    // `+rowid` keeps the id list out of the query plan: the words are matched once and the
+    // rows filtered, instead of the whole match being run again for every id.
+    let sql = format!(
+        "SELECT rowid, snippet(content_fts, 0, char(2), char(3), '…', 14)
+         FROM content_fts WHERE content_fts MATCH ? AND +rowid IN ({placeholders})"
+    );
+    let mut args = vec![Value::Text(expr.to_string())];
+    args.extend(ids.iter().map(|id| Value::Integer(*id)));
+    let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(params_from_iter(args.iter()), |r| {
-        Ok((FileRow::from_row(r)?, r.get::<_, String>(12)?))
+        Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
@@ -507,12 +572,10 @@ mod tests {
                     r.get(0)
                 })
                 .unwrap();
-            conn.execute(
-                "INSERT INTO content_fts (rowid, body) VALUES (?1, ?2)",
-                rusqlite::params![
-                    id,
-                    "Experienced engineer. Built a quarterly forecasting model."
-                ],
+            crate::db::text::set(
+                &conn,
+                id,
+                Some("Experienced engineer. Built a quarterly forecasting model."),
             )
             .unwrap();
         }

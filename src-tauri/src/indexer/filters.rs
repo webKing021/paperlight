@@ -30,7 +30,13 @@ pub const EXTENSIONS: &[(&str, &str)] = &[
     ("pps", "slides"),
     ("ppsx", "slides"),
     ("odp", "slides"),
+    ("txt", "text"),
+    ("md", "text"),
 ];
+
+/// Formats that are only indexed once the user turns them on. Plain-text files are
+/// everywhere (licences, logs, READMEs), so they would drown the documents by default.
+pub const OPT_IN: &[&str] = &["txt", "md"];
 
 /// Returns the document kind for a lower-case extension, or `None` if it is not indexed.
 pub fn kind_for_ext(ext: &str) -> Option<&'static str> {
@@ -42,15 +48,29 @@ pub fn kind_for_ext(ext: &str) -> Option<&'static str> {
 
 /// Settings key holding the extensions the user chose not to index (comma-separated).
 const DISABLED_KEY: &str = "disabled_formats";
+/// Settings key holding the [`OPT_IN`] extensions the user turned on (comma-separated).
+const OPTED_IN_KEY: &str = "opted_in_formats";
 
-/// Which extensions are indexed. Stores the *disabled* ones, so formats added in a later
-/// version are indexed by default.
-#[derive(Debug, Default, Clone)]
+/// Which extensions are indexed. Ordinary formats are stored as the *disabled* ones, so a
+/// format added in a later version is indexed by default; [`OPT_IN`] formats are stored as
+/// the ones turned *on*, so they stay off until chosen.
+#[derive(Debug, Clone)]
 pub struct Formats {
+    /// Every extension that is not indexed.
     disabled: HashSet<String>,
 }
 
+impl Default for Formats {
+    /// Everything on except the opt-in formats.
+    fn default() -> Self {
+        Self {
+            disabled: OPT_IN.iter().map(|e| e.to_string()).collect(),
+        }
+    }
+}
+
 impl Formats {
+    /// From the complete list of extensions that should not be indexed.
     pub fn new<S: AsRef<str>>(disabled: &[S]) -> Self {
         Self {
             disabled: disabled
@@ -62,16 +82,41 @@ impl Formats {
     }
 
     pub fn load(conn: &Connection) -> AppResult<Self> {
-        let raw = roots::get_setting(conn, DISABLED_KEY)?.unwrap_or_default();
-        let list: Vec<&str> = raw.split(',').filter(|e| !e.is_empty()).collect();
-        Ok(Self::new(&list))
+        let list = |key: &str| -> AppResult<Vec<String>> {
+            let raw = roots::get_setting(conn, key)?.unwrap_or_default();
+            Ok(raw
+                .split(',')
+                .filter(|e| !e.is_empty())
+                .map(str::to_string)
+                .collect())
+        };
+        let mut disabled = list(DISABLED_KEY)?;
+        disabled.retain(|e| !OPT_IN.contains(&e.as_str()));
+        let opted_in = list(OPTED_IN_KEY)?;
+        disabled.extend(
+            OPT_IN
+                .iter()
+                .filter(|e| !opted_in.iter().any(|o| o == *e))
+                .map(|e| e.to_string()),
+        );
+        Ok(Self::new(&disabled))
     }
 
     pub fn save(&self, conn: &Connection) -> AppResult<()> {
-        roots::set_setting(conn, DISABLED_KEY, &self.disabled_list().join(","))
+        let (opt, normal): (Vec<String>, Vec<String>) = self
+            .disabled_list()
+            .into_iter()
+            .partition(|e| OPT_IN.contains(&e.as_str()));
+        let opted_in: Vec<&str> = OPT_IN
+            .iter()
+            .copied()
+            .filter(|e| !opt.iter().any(|o| o == e))
+            .collect();
+        roots::set_setting(conn, DISABLED_KEY, &normal.join(","))?;
+        roots::set_setting(conn, OPTED_IN_KEY, &opted_in.join(","))
     }
 
-    /// Disabled extensions in a stable order.
+    /// Every extension that is not indexed, in a stable order.
     pub fn disabled_list(&self) -> Vec<String> {
         let mut v: Vec<String> = self.disabled.iter().cloned().collect();
         v.sort();
@@ -212,7 +257,26 @@ mod tests {
         assert_eq!(kind_for_ext("xlsx"), Some("excel"));
         assert_eq!(kind_for_ext("pptx"), Some("slides"));
         assert_eq!(kind_for_ext("exe"), None);
-        assert_eq!(kind_for_ext("txt"), None);
+        assert_eq!(kind_for_ext("md"), Some("text"));
+    }
+
+    #[test]
+    fn plain_text_is_indexed_only_when_turned_on() {
+        let tmp = tempfile::tempdir().unwrap();
+        let db = crate::db::Db::open(&tmp.path().join("f.db")).unwrap();
+        let conn = db.writer();
+        // A fresh install, and one that saved its formats before txt/md existed.
+        assert_eq!(Formats::load(&conn).unwrap().kind("txt"), None);
+        roots::set_setting(&conn, DISABLED_KEY, "csv").unwrap();
+        let old = Formats::load(&conn).unwrap();
+        assert_eq!((old.kind("md"), old.kind("csv")), (None, None));
+        assert_eq!(old.kind("pdf"), Some("pdf"));
+
+        // Turning txt on (md stays off) survives a save and load.
+        Formats::new(&["csv", "md"]).save(&conn).unwrap();
+        let now = Formats::load(&conn).unwrap();
+        assert_eq!(now.kind("txt"), Some("text"));
+        assert_eq!(now.disabled_list(), ["csv", "md"]);
     }
 
     #[test]

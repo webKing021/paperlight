@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { ExternalLink, FolderOpen } from "lucide-react";
 import type { ReactNode } from "react";
-import { openFile, revealFile } from "../lib/actions";
+import { dragOut, openFile, revealFile } from "../lib/actions";
 import type { FileRow } from "../lib/api";
 import { formatDateTime, formatRelative, formatSize } from "../lib/format";
 import { useUi } from "../stores/ui";
@@ -17,6 +17,8 @@ export function DocRow({ row, folder }: { row: FileRow; folder?: ReactNode }) {
       <div
         onClick={() => setSelectedId(row.id)}
         onDoubleClick={() => openFile(row)}
+        draggable
+        onDragStart={(e) => dragOut(e, row)}
         title={row.path}
         className={clsx(
           "group grid h-[50px] cursor-default grid-cols-[minmax(0,1fr)_120px_72px_64px] items-center gap-4 rounded-md px-3",

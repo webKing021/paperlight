@@ -1,3 +1,4 @@
+mod clipboard;
 mod commands;
 mod content;
 mod db;
@@ -68,6 +69,8 @@ pub fn run() {
             commands::search_files,
             commands::open_file,
             commands::reveal_file,
+            commands::copy_file,
+            commands::drag_file,
             commands::add_root,
             commands::remove_root,
             commands::set_root_enabled,
@@ -86,6 +89,7 @@ pub fn run() {
             commands::preview_pdf,
             commands::shell_info,
             commands::set_autostart,
+            commands::set_hotkey,
             commands::set_theme,
             commands::main_ready,
             commands::open_website,

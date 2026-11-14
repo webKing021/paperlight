@@ -87,7 +87,7 @@ pub fn purge_excluded(db: &Db) -> AppResult<usize> {
     let tx = conn.transaction()?;
     let removed = files::delete_ids(&tx, &doomed)?;
     tx.commit()?;
-    conn.execute_batch("PRAGMA incremental_vacuum;")?;
+    crate::db::release_free_pages(&conn)?;
     Ok(removed)
 }
 
