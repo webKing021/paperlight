@@ -5,7 +5,7 @@ Thanks for helping. Bug reports, ideas, docs and code are all welcome.
 ## Ways to help
 
 - **Report a bug**: [open an issue](https://github.com/webKing021/paperlight/issues/new/choose)
-  with steps to reproduce and your Windows version.
+  with steps to reproduce and your Windows version (or Linux distribution and desktop).
 - **Suggest a feature**: open a feature request and describe the problem it solves.
 - **Pick an issue**: look for [`good first issue`](https://github.com/webKing021/paperlight/labels/good%20first%20issue)
   or [`help wanted`](https://github.com/webKing021/paperlight/labels/help%20wanted). Comment
@@ -13,8 +13,11 @@ Thanks for helping. Bug reports, ideas, docs and code are all welcome.
 
 ## Set up
 
-You need Windows 10/11, Node.js 20+, Rust (stable, MSVC toolchain), the Visual Studio C++
-Build Tools and WebView2 (preinstalled on Windows 11).
+On Windows you need Windows 10/11, Node.js 20+, Rust (stable, MSVC toolchain), the Visual
+Studio C++ Build Tools and WebView2 (preinstalled on Windows 11).
+
+On Linux you need Node.js 20+, Rust (stable) and the WebKitGTK development packages; the
+exact `apt-get install` line is in `.github/workflows/ci.yml`.
 
 ```bash
 git clone https://github.com/webKing021/paperlight
