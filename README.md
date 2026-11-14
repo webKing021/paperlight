@@ -12,6 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/webKing021/paperlight/releases/latest"><b>Download for Windows</b></a> ·
+  <a href="#linux-beta">Linux (beta)</a> ·
   <a href="#features">Features</a> ·
   <a href="CONTRIBUTING.md">Contribute</a>
 </p>
@@ -75,6 +76,22 @@ they change, and finds any of them in milliseconds.
 3. The welcome screens walk you through setup: pick the drives or folders to index, choose a
    few preferences and press **Start indexing**. Paperlight is usable while the first scan runs.
 
+### Linux (beta)
+
+Each [release](https://github.com/webKing021/paperlight/releases/latest) also has Linux
+packages for x86-64, built on Ubuntu 22.04:
+
+- **Debian, Ubuntu, Mint:** `sudo apt install ./Paperlight_x.y.z_amd64.deb`
+- **Fedora, openSUSE:** `sudo dnf install ./Paperlight-x.y.z-1.x86_64.rpm`
+- **Anything else:** make the `.AppImage` executable (`chmod +x`) and run it. It is much
+  larger than the packages because it carries its own web engine.
+
+It is a beta. On Linux, Paperlight doesn't update itself yet (install the newer package over
+the old one; your index, favourites and tags are kept), the quick-search shortcut needs an X11
+session, the tray icon needs a desktop that shows app indicators, and Copy file isn't
+available (drag the document out instead). Reports from real desktops are very welcome in
+[Issues](https://github.com/webKing021/paperlight/issues).
+
 You only download the installer once. Updating is optional: when a new version with new
 features comes out, Paperlight tells you and installs it from inside the app (**Update now**),
 keeping your index, favourites and tags. If you don't, it keeps working as it is.
@@ -106,7 +123,9 @@ npm run tauri build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
 Official releases are also signed for the in-app updater, which needs the project's private
 key; the `--config` override above builds an unsigned installer without it.
 
-Needs Node.js 20+, Rust (MSVC) and the Visual Studio C++ Build Tools. Built with
+On Windows this needs Node.js 20+, Rust (MSVC) and the Visual Studio C++ Build Tools. On
+Linux it needs Node.js 20+, Rust and the packages listed in `.github/workflows/ci.yml`;
+`npm run tauri build` then makes the .deb, .rpm and AppImage. Built with
 [Tauri 2](https://tauri.app), Rust, SQLite FTS5 and React.
 
 ## Contributing

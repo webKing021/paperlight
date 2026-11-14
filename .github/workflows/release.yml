@@ -1,8 +1,9 @@
 name: Release
 
-# Pushing a version tag (v1.1.0) builds the signed installer and drafts a GitHub release with
-# it, its signature and latest.json. Installed copies of Paperlight see the update only after
-# the draft is published.
+# Pushing a version tag (v1.1.0) builds the signed Windows installer and drafts a GitHub release
+# with it, its signature and latest.json, then adds the Linux packages (.deb, .rpm, AppImage)
+# to the same draft. Installed copies of Paperlight see the update only after the draft is
+# published.
 on:
   push:
     tags: ["v*"]
@@ -71,3 +72,42 @@ jobs:
           releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
+
+  # Linux packages, added to the draft the Windows job created. They are not part of the
+  # in-app updater (see tauri.linux.conf.json), so latest.json is left alone.
+  linux:
+    needs: release
+    # The oldest supported Ubuntu, so the packages run on older distributions too.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          save-if: false
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build the packages and add them to the draft
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Paperlight ${{ github.ref_name }}
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: false
