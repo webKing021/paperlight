@@ -1,10 +1,11 @@
 import clsx from "clsx";
 import { Moon, PanelRight, Search, Sun, SunMoon, X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
+import { MATCH_LABEL } from "../lib/platform";
 import { useUi } from "../stores/ui";
 
 const THEME_ICON = { system: SunMoon, light: Sun, dark: Moon } as const;
-const THEME_LABEL = { system: "Match Windows", light: "Light", dark: "Dark" } as const;
+const THEME_LABEL = { system: MATCH_LABEL, light: "Light", dark: "Dark" } as const;
 
 /** A small keyboard-shortcut chip. */
 export function Kbd({ children, className }: { children: ReactNode; className?: string }) {

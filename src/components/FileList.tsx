@@ -33,6 +33,7 @@ import {
 } from "../lib/actions";
 import type { FileRow, Page, SortKey, Tag } from "../lib/api";
 import { formatDateTime, formatRelative, formatSize } from "../lib/format";
+import { IS_WINDOWS } from "../lib/platform";
 import { useIndex } from "../stores";
 import { useUi, type Sort } from "../stores/ui";
 import { FileIcon } from "./FileIcon";
@@ -237,7 +238,7 @@ export function FileList(props: FileListProps) {
       } else if (e.ctrlKey && e.shiftKey && key === "c") {
         e.preventDefault();
         copyPath(row);
-      } else if (e.ctrlKey && key === "c" && !window.getSelection()?.toString() && !inputSelection()) {
+      } else if (IS_WINDOWS && e.ctrlKey && key === "c" && !window.getSelection()?.toString() && !inputSelection()) {
         // Plain Ctrl+C still copies text when some is selected (e.g. in the search box).
         e.preventDefault();
         copyFile(row);
@@ -568,9 +569,11 @@ function ContextMenu({ menu, tags, onClose }: { menu: MenuState; tags: Tag[]; on
       <MenuItem icon={<FolderOpen className="size-4" />} hint="Ctrl+Enter" onClick={run(() => revealFile(row))}>
         Show in folder
       </MenuItem>
-      <MenuItem icon={<Copy className="size-4" />} hint="Ctrl+C" onClick={run(() => copyFile(row))}>
-        Copy file
-      </MenuItem>
+      {IS_WINDOWS && (
+        <MenuItem icon={<Copy className="size-4" />} hint="Ctrl+C" onClick={run(() => copyFile(row))}>
+          Copy file
+        </MenuItem>
+      )}
       <MenuItem icon={<ClipboardCopy className="size-4" />} hint="Ctrl+Shift+C" onClick={run(() => copyPath(row))}>
         Copy path
       </MenuItem>

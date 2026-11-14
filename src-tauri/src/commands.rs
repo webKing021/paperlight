@@ -88,7 +88,7 @@ fn existing_path(state: &AppState, id: i64) -> AppResult<String> {
 pub fn open_file(state: State<'_, AppState>, id: i64) -> AppResult<()> {
     let path = existing_path(&state, id)?;
     tauri_plugin_opener::open_path(&path, None::<&str>)
-        .map_err(|e| AppError::msg(format!("Windows could not open the file: {e}")))?;
+        .map_err(|e| AppError::msg(format!("The system could not open the file: {e}")))?;
     files::record_open(&state.db.writer(), id, now_ms())
 }
 

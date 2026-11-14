@@ -228,12 +228,14 @@ fn run(
 pub fn plan_watches(root: &Path, ex: &Exclusions) -> Vec<(PathBuf, RecursiveMode)> {
     let mut out = Vec::new();
     let is_drive = root.parent().is_none();
-    plan_dir(root, 0, is_drive, ex, &mut out);
+    let location = root.to_string_lossy();
+    plan_dir(root, &location, 0, is_drive, ex, &mut out);
     out
 }
 
 fn plan_dir(
     dir: &Path,
+    location: &str,
     depth: usize,
     is_drive: bool,
     ex: &Exclusions,
@@ -249,8 +251,11 @@ fn plan_dir(
                         return None;
                     }
                     let path = e.path();
-                    let excluded = ex
-                        .is_excluded_dir(&path.to_string_lossy(), &e.file_name().to_string_lossy());
+                    let excluded = ex.is_excluded_dir_in(
+                        location,
+                        &path.to_string_lossy(),
+                        &e.file_name().to_string_lossy(),
+                    );
                     Some((path, excluded))
                 })
                 .collect()
@@ -266,7 +271,7 @@ fn plan_dir(
     out.push((dir.to_path_buf(), RecursiveMode::NonRecursive));
     for (child, excluded) in children {
         if !excluded {
-            plan_dir(&child, depth + 1, is_drive, ex, out);
+            plan_dir(&child, location, depth + 1, is_drive, ex, out);
         }
     }
 }
@@ -397,7 +402,10 @@ impl Scope {
             .file_name()
             .map(|n| n.to_string_lossy())
             .unwrap_or_default();
-        self.ex.is_excluded_dir(&path.to_string_lossy(), &name)
+        let path = path.to_string_lossy();
+        // Outside every location nothing is indexed anyway; "" then matches no path rule.
+        let location = self.root_of(&path).map_or("", |r| r.path.as_str());
+        self.ex.is_excluded_dir_in(location, &path, &name)
     }
 }
 

@@ -3,6 +3,23 @@
 All notable changes to Paperlight are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.1] - 2026-11-15
+
+### Added
+- **Linux (beta).** Paperlight now builds for Linux: a .deb, an .rpm and an AppImage are
+  attached to each release. It starts with your home folder and skips system folders,
+  hidden (dot) folders and developer folders. It is a beta, with these limits for now:
+  - It doesn't update itself on Linux; Settings → About links to the releases page.
+  - The quick-search shortcut needs an X11 session (Wayland doesn't let apps register
+    global shortcuts).
+  - The tray icon needs a desktop that shows app indicators (on GNOME, the AppIndicator
+    extension).
+  - Copy file isn't available; drag the document out instead.
+
+### Fixed
+- A folder added as a location inside an excluded path (for example a folder under
+  ProgramData) is now indexed. Before, it stayed empty.
+
 ## [1.2.0] - 2026-11-14
 
 ### Added

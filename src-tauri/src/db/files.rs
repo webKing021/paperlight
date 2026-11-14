@@ -8,6 +8,7 @@ use rusqlite::{
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppResult;
+use crate::paths::{prefix_bounds, SEP};
 
 /// A document found on disk, ready to be written to the index.
 #[derive(Debug, Clone)]
@@ -154,13 +155,6 @@ pub fn find_by_path(conn: &Connection, path: &str) -> AppResult<Option<Indexed>>
         .optional()?)
 }
 
-/// Bounds selecting every path strictly inside `dir`: `dir\` <= path < `dir]` (`]` sorts right
-/// after `\`). The column's NOCASE collation makes this an index range scan.
-fn prefix_bounds(dir: &str) -> (String, String) {
-    let dir = dir.trim_end_matches('\\');
-    (format!("{dir}\\"), format!("{dir}]"))
-}
-
 pub fn files_under(conn: &Connection, dir: &str) -> AppResult<Vec<Indexed>> {
     let (lo, hi) = prefix_bounds(dir);
     let mut stmt = conn.prepare_cached(
@@ -173,8 +167,8 @@ pub fn files_under(conn: &Connection, dir: &str) -> AppResult<Vec<Indexed>> {
 /// A folder was renamed or moved: rewrite the paths of everything inside it, keeping ids.
 /// (`substr(dir, cut)` is empty for files directly inside `from`, so their dir becomes `to`.)
 pub fn move_prefix(conn: &Connection, from: &str, to: &str) -> AppResult<usize> {
-    let from = from.trim_end_matches('\\');
-    let to = to.trim_end_matches('\\');
+    let from = from.trim_end_matches(SEP);
+    let to = to.trim_end_matches(SEP);
     let (lo, hi) = prefix_bounds(from);
     let cut = from.chars().count() as i64 + 1;
     Ok(conn.execute(
