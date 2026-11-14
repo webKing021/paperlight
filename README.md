@@ -14,6 +14,7 @@
   <a href="https://github.com/webKing021/paperlight/releases/latest"><b>Download for Windows</b></a> ·
   <a href="#linux-beta">Linux (beta)</a> ·
   <a href="#features">Features</a> ·
+  <a href="#paperlight-or-something-else">Compare</a> ·
   <a href="CONTRIBUTING.md">Contribute</a>
 </p>
 
@@ -50,7 +51,23 @@ they change, and finds any of them in milliseconds.
 - **Updates itself, if you want.** New versions install from inside the app in a few seconds,
   keeping your index, favourites and tags. Paperlight works offline either way.
 - **At home on Windows.** A native look, light and dark themes (title bar included) and a
-  short welcome that sets everything up on first run.
+  short welcome that sets everything up on first run. A [Linux beta](#linux-beta) is
+  available too.
+
+## Paperlight or something else?
+
+There are good search tools already. Which one fits depends on what you are looking for:
+
+- **Any file, by name:** [Everything](https://www.voidtools.com/) lists every file on your
+  drives instantly. Use it when you know the name. Paperlight only looks at documents.
+- **The most formats, OCR, advanced queries:**
+  [DocFetcher](https://docfetcher.sourceforge.io/), [AnyTXT Searcher](https://anytxt.net/)
+  and [Recoll](https://www.recoll.org/) are mature full-text tools that read more formats
+  than Paperlight does.
+- **Paperlight** is the small, quiet one for everyday documents: a ~5 MB download, nothing
+  to configure, no background service, an index that follows your files as they change, a
+  launcher on a hotkey, and all of it open source under MIT. It reads PDF, Word, Excel and
+  PowerPoint (and plain text if you turn it on), and it does not do OCR.
 
 ## Screenshots
 
