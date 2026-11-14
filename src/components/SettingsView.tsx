@@ -15,7 +15,7 @@ import {
   SunMoon,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type FormatInfo, type RootInfo, type SettingsInfo } from "../lib/api";
 import { FILE_KINDS, KIND_ORDER } from "../lib/fileKinds";
 import { formatRelative, formatSize } from "../lib/format";
@@ -389,7 +389,10 @@ function Formats() {
           );
         })}
       </Card>
-      <Note>* Found by name only; the text inside isn't read.</Note>
+      <Note>
+        * Found by name only; the text inside isn't read. Text files (.txt, .md) start switched
+        off, because most PCs hold thousands of them that aren't documents.
+      </Note>
       {dirty && (
         <div className="mt-3 flex items-center gap-3 rounded-lg border border-line-strong bg-paper-2 px-4 py-3 animate-rise">
           <p className="flex-1 text-[12.5px] leading-snug text-ink-2">
@@ -535,18 +538,71 @@ function Background({ info, change }: { info: SettingsInfo; change: Change }) {
         >
           <Switch checked={info.autostart} onChange={setAutostart} label="Start with Windows" />
         </Row>
-        <Row
-          title="Quick search from any app"
-          hint={
-            info.hotkey
-              ? "Alt+Space is used when free, otherwise Ctrl+Shift+Space or Ctrl+Alt+P."
-              : "Alt+Space, Ctrl+Shift+Space and Ctrl+Alt+P are all taken by other apps."
-          }
-        >
-          <Kbd className="h-6 px-2 text-[12px] text-ink-2">{info.hotkey ?? "Unavailable"}</Kbd>
-        </Row>
+        <HotkeyRow info={info} change={change} />
       </Card>
     </Section>
+  );
+}
+
+/** The key a hotkey can end in: a letter, a digit, F1–F12 or Space. */
+function hotkeyKey(code: string): string | null {
+  const m = /^(?:Key([A-Z])|Digit(\d)|(F(?:[1-9]|1[0-2]))|(Space))$/.exec(code);
+  return m ? (m[1] ?? m[2] ?? m[3] ?? m[4]) : null;
+}
+
+/** Shows the quick-search hotkey and lets the user press a new one. */
+function HotkeyRow({ info, change }: { info: SettingsInfo; change: Change }) {
+  const toast = useUi((s) => s.toast);
+  const [recording, setRecording] = useState(false);
+
+  const save = (keys: string | null) =>
+    change(async () => {
+      const hotkey = await api.setHotkey(keys);
+      const shell = useIndex.getState().shell;
+      if (shell) useIndex.setState({ shell: { ...shell, hotkey } });
+    });
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  useEffect(() => {
+    if (!recording) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (e.key === "Escape") return setRecording(false);
+      const key = hotkeyKey(e.code);
+      if (!key) return; // still holding only Ctrl / Alt / Shift
+      if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+        toast("Hold Ctrl, Alt or the Windows key as well, so typing doesn't trigger it.", "error");
+        return;
+      }
+      const mods = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"];
+      setRecording(false);
+      saveRef.current([...mods.filter(Boolean), key].join("+"));
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [recording, toast]);
+
+  return (
+    <Row
+      title="Quick search from any app"
+      hint={
+        recording
+          ? "Press the keys you want, for example Ctrl+Alt+F. Esc cancels."
+          : info.hotkeyCustom
+            ? "Your own shortcut. Reset goes back to Alt+Space."
+            : info.hotkey
+              ? "Alt+Space is used when free, otherwise Ctrl+Shift+Space or Ctrl+Alt+P."
+              : "Alt+Space, Ctrl+Shift+Space and Ctrl+Alt+P are all taken by other apps. Choose your own."
+      }
+    >
+      <Kbd className="h-6 px-2 text-[12px] text-ink-2">
+        {recording ? "Press keys…" : (info.hotkey?.replace("Super", "Win") ?? "Unavailable")}
+      </Kbd>
+      {info.hotkeyCustom && !recording && <Button onClick={() => saveRef.current(null)}>Reset</Button>}
+      <Button onClick={() => setRecording((r) => !r)}>{recording ? "Cancel" : "Change"}</Button>
+    </Row>
   );
 }
 

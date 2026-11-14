@@ -37,6 +37,24 @@ export async function copyPath(row: FileRow) {
   }
 }
 
+export async function copyFile(row: FileRow) {
+  try {
+    await api.copyFile(row.id);
+    toast("File copied. Paste it into a folder, an email or a chat.");
+  } catch (e) {
+    onMissing(e);
+  }
+}
+
+/**
+ * Hands the row to the system as a real file being dragged, so it can be dropped into a
+ * folder, an email, a chat or an upload box. Use as the row's `onDragStart`.
+ */
+export function dragOut(e: { preventDefault: () => void }, row: FileRow) {
+  e.preventDefault(); // the browser's own drag would only carry text
+  api.dragFile(row.id).catch(onMissing);
+}
+
 export async function toggleFavourite(row: FileRow) {
   try {
     await api.setFavourite(row.id, !row.isFavourite);

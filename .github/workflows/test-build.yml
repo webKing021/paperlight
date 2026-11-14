@@ -1,0 +1,51 @@
+name: Test build
+
+# Builds an unsigned Windows installer to try out before a release. It is not signed for the
+# in-app updater and is never published: download it from the run's Artifacts.
+# Run it from the Actions tab, or push a branch named test-build/<anything>.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["test-build/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          save-if: false
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Build the installer (unsigned)
+        shell: bash
+        run: npm run tauri build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Installer size
+        shell: bash
+        run: ls -l src-tauri/target/release/bundle/nsis/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paperlight-test-installer
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14

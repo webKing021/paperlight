@@ -153,13 +153,7 @@ fn read_with_timeout(job: &Job) -> (i64, Option<String>) {
 fn store(db: &Db, job: &Job, status: i64, text: Option<&str>) -> AppResult<()> {
     let mut conn = db.writer();
     let tx = conn.transaction()?;
-    tx.execute("DELETE FROM content_fts WHERE rowid = ?1", [job.id])?;
-    if let Some(text) = text.filter(|t| !t.is_empty()) {
-        tx.execute(
-            "INSERT INTO content_fts (rowid, body) VALUES (?1, ?2)",
-            params![job.id, text],
-        )?;
-    }
+    crate::db::text::set(&tx, job.id, text)?;
     // Only mark it read if the file didn't change while we were reading it.
     tx.execute(
         "UPDATE files SET content_status = ?2

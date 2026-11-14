@@ -135,7 +135,7 @@ pub fn scan(
         roots::set_setting(&conn, "last_scan_at", &now_ms().to_string())?;
         if summary.removed > 0 {
             // Give freed pages back to the OS so the index never grows without bound.
-            conn.execute_batch("PRAGMA incremental_vacuum;")?;
+            crate::db::release_free_pages(&conn)?;
         }
     }
     summary.duration_ms = started.elapsed().as_millis() as u64;

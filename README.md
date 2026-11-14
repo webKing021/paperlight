@@ -35,10 +35,13 @@ they change, and finds any of them in milliseconds.
 ## Features
 
 - **Search inside documents.** Names, folders and the text of PDFs, Word, Excel and PowerPoint
-  files, typo-tolerant, with the matching passage highlighted.
+  files, typo-tolerant, with the matching passage highlighted. Whole documents, not just the
+  first pages.
+- **Drag it where you need it.** Drag a result into an email, a chat or a folder, or copy the
+  file with <kbd>Ctrl</kbd>+<kbd>C</kbd>.
 - **Buckets.** One tile per document type: PDFs, Word documents, Spreadsheets, Presentations,
   each with its own search.
-- **Quick search from anywhere.** <kbd>Alt</kbd>+<kbd>Space</kbd> in any app, then <kbd>Enter</kbd> to open.
+- **Quick search from anywhere.** <kbd>Alt</kbd>+<kbd>Space</kbd> in any app (or a hotkey you choose), then <kbd>Enter</kbd> to open.
 - **Always current.** New, renamed, moved and deleted files show up within a second.
 - **Organise without touching files.** Favourites, tags, recently opened, previews.
 - **Duplicates and storage.** Find byte-identical copies and see what takes space.
@@ -87,6 +90,7 @@ keeping your index, favourites and tags. If you don't, it keeps working as it is
 ## Keyboard
 
 <kbd>Ctrl</kbd>+<kbd>K</kbd> search · <kbd>Enter</kbd> open · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> show in folder ·
+<kbd>Ctrl</kbd>+<kbd>C</kbd> copy file · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> copy path ·
 <kbd>Ctrl</kbd>+<kbd>D</kbd> favourite · <kbd>Ctrl</kbd>+<kbd>T</kbd> tag ·
 <kbd>Ctrl</kbd>+<kbd>B</kbd> sidebar · <kbd>Ctrl</kbd>+<kbd>I</kbd> details
 

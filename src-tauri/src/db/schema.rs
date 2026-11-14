@@ -86,7 +86,7 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX files_opened ON files(last_opened_at DESC) WHERE last_opened_at IS NOT NULL;
     CREATE INDEX files_favourite ON files(is_favourite) WHERE is_favourite = 1;
     "#,
-    // v3: text inside documents (at most ~32 K characters each), read in the background
+    // v3: text inside documents, read in the background (reshaped by v5)
     r#"
     CREATE VIRTUAL TABLE content_fts USING fts5(
         body,
@@ -104,15 +104,49 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX files_size ON files(size);
     CREATE INDEX files_hash ON files(hash) WHERE hash IS NOT NULL;
     "#,
+    // v5: whole documents are searchable (up to 200 K characters, was 32 K), so the text is
+    // kept compressed in `doc_text` and indexed as external content (see db/text.rs).
+    // Documents that had hit the old limit are queued to be read again.
+    r#"
+    UPDATE files SET content_status = 0
+     WHERE id IN (SELECT rowid FROM content_fts WHERE length(body) >= 31000);
+
+    CREATE TABLE doc_text (
+        id  INTEGER PRIMARY KEY,
+        z   BLOB NOT NULL
+    );
+    INSERT INTO doc_text (id, z)
+        SELECT c.rowid, pl_zip(c.body) FROM content_fts c
+         WHERE c.rowid IN (SELECT id FROM files) AND length(c.body) > 0;
+
+    DROP TRIGGER files_content_ad;
+    DROP TABLE content_fts;
+
+    CREATE VIEW doc_text_plain AS SELECT id, pl_unzip(z) AS body FROM doc_text;
+    CREATE VIRTUAL TABLE content_fts USING fts5(
+        body,
+        content = 'doc_text_plain', content_rowid = 'id',
+        tokenize = 'unicode61 remove_diacritics 2'
+    );
+    INSERT INTO content_fts (content_fts) VALUES ('rebuild');
+
+    CREATE TRIGGER files_content_ad AFTER DELETE ON files BEGIN
+        INSERT INTO content_fts (content_fts, rowid, body)
+            SELECT 'delete', id, pl_unzip(z) FROM doc_text WHERE id = old.id;
+        DELETE FROM doc_text WHERE id = old.id;
+    END;
+    "#,
 ];
 
-pub fn migrate(conn: &mut Connection) -> AppResult<()> {
+/// Brings the schema up to date. Returns `true` if anything was migrated.
+pub fn migrate(conn: &mut Connection) -> AppResult<bool> {
     let current: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    let pending = MIGRATIONS.len() as i64 > current;
     for (i, sql) in MIGRATIONS.iter().enumerate().skip(current as usize) {
         let tx = conn.transaction()?;
         tx.execute_batch(sql)?;
         tx.pragma_update(None, "user_version", (i + 1) as i64)?;
         tx.commit()?;
     }
-    Ok(())
+    Ok(pending)
 }

@@ -5,9 +5,10 @@ const COLOR: Record<FileKind, string> = {
   word: "var(--word)",
   excel: "var(--excel)",
   slides: "var(--slides)",
+  text: "var(--plain)",
 };
 
-const BADGE: Record<FileKind, string> = { pdf: "PDF", word: "DOC", excel: "XLS", slides: "PPT" };
+const BADGE: Record<FileKind, string> = { pdf: "PDF", word: "DOC", excel: "XLS", slides: "PPT", text: "TXT" };
 
 /**
  * A document icon: a page with a folded corner and a badge in the type's colour, like the

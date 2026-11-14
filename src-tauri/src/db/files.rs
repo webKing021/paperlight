@@ -494,7 +494,7 @@ pub fn count_by_root(conn: &Connection) -> AppResult<HashMap<i64, i64>> {
 /// names, locations, exclusions and settings are kept. Files on disk are never touched.
 pub fn reset_all(conn: &mut Connection) -> AppResult<()> {
     let tx = conn.transaction()?;
-    // Triggers clear the name and text indexes; file_tags cascade.
+    // Triggers clear the name index and the stored text; file_tags cascade.
     tx.execute_batch(
         "DELETE FROM files;
          DELETE FROM settings WHERE key = 'last_scan_at';",
@@ -530,7 +530,7 @@ pub fn details(conn: &Connection, id: i64) -> AppResult<Option<Details>> {
     attach_tags(conn, std::slice::from_mut(&mut file))?;
     let excerpt = conn
         .query_row(
-            "SELECT substr(body, 1, 1400) FROM content_fts WHERE rowid = ?1",
+            "SELECT substr(pl_unzip(z), 1, 1400) FROM doc_text WHERE id = ?1",
             [id],
             |r| r.get(0),
         )

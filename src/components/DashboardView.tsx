@@ -16,6 +16,7 @@ const BUCKET_NAME: Record<FileKind, string> = {
   word: "Word documents",
   excel: "Spreadsheets",
   slides: "Presentations",
+  text: "Text files",
 };
 
 /** A bucket's name inside a sentence: "PDFs" keeps its capitals, "word documents" doesn't. */
