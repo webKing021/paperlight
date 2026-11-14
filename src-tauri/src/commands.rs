@@ -59,11 +59,23 @@ pub fn search_files(state: State<'_, AppState>, query: SearchQuery) -> AppResult
 }
 
 /// Looks up an indexed document by id. The UI can only ever open files that are in the index,
-/// never arbitrary paths. A file that vanished since the last sync is dropped from the index.
+/// never arbitrary paths. A file that vanished since the last sync is dropped from the index,
+/// unless its whole location is unreachable (an unplugged or sleeping drive): then the file is
+/// most likely still there, and its row keeps its favourite, tags and history.
 fn existing_path(state: &AppState, id: i64) -> AppResult<String> {
     let path = files::path_of(&state.db.reader(), id)?
         .ok_or_else(|| AppError::msg("This document is no longer in the index."))?;
     if !std::path::Path::new(&path).exists() {
+        let offline = roots::list_roots(&state.db.reader())?
+            .iter()
+            .filter(|r| roots::is_within(&path, &r.path))
+            .max_by_key(|r| r.path.len())
+            .is_some_and(|r| !std::path::Path::new(&r.path).is_dir());
+        if offline {
+            return Err(AppError::msg(
+                "This file's drive or folder isn't connected right now. Connect it and try again.",
+            ));
+        }
         files::delete_ids(&state.db.writer(), &[id])?;
         return Err(AppError::msg(
             "This file was moved or deleted. It has been removed from Paperlight.",
@@ -85,6 +97,25 @@ pub fn reveal_file(state: State<'_, AppState>, id: i64) -> AppResult<()> {
     let path = existing_path(&state, id)?;
     tauri_plugin_opener::reveal_item_in_dir(&path)
         .map_err(|e| AppError::msg(format!("Could not open the folder: {e}")))
+}
+
+/// Puts an indexed document on the clipboard as a file (by id only, never an arbitrary path).
+#[tauri::command]
+pub fn copy_file(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    let path = existing_path(&state, id)?;
+    crate::clipboard::copy_file(std::path::Path::new(&path))
+}
+
+/// Starts dragging an indexed document out of the window, so it can be dropped into a folder,
+/// an email or another app. Always a copy: the original file is never moved.
+#[tauri::command]
+pub fn drag_file(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    let path = existing_path(&state, id)?;
+    shell::drag_out(&window, std::path::PathBuf::from(path))
 }
 
 /// Opens one of Paperlight's own web pages in the browser. The UI names a page rather than
@@ -247,6 +278,13 @@ pub struct ShellInfo {
     pub autostart: bool,
 }
 
+/// Chooses the quick-search hotkey (`None` goes back to the built-in defaults). Returns the
+/// hotkey now in use. Async so the registration runs off the main thread.
+#[tauri::command]
+pub async fn set_hotkey(app: AppHandle, keys: Option<String>) -> AppResult<Option<String>> {
+    shell::set_hotkey(&app, keys.as_deref())
+}
+
 #[tauri::command]
 pub fn shell_info(app: AppHandle) -> ShellInfo {
     ShellInfo {
@@ -299,6 +337,8 @@ pub struct SettingsInfo {
     /// Bytes the index takes on disk.
     pub index_bytes: u64,
     pub hotkey: Option<String>,
+    /// True when the hotkey is one the user chose, not a built-in default.
+    pub hotkey_custom: bool,
     pub autostart: bool,
 }
 
@@ -318,6 +358,7 @@ pub fn get_settings(app: AppHandle, state: State<'_, AppState>) -> AppResult<Set
         exclusions: roots::list_exclusions(&conn)?,
         index_bytes: state.db.size_on_disk(),
         hotkey: shell::hotkey(&app),
+        hotkey_custom: shell::hotkey_is_custom(&app),
         autostart: shell::autostart_enabled(&app),
     })
 }

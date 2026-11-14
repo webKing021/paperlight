@@ -11,7 +11,7 @@ use quick_xml::Reader;
 /// Files larger than this are not opened at all.
 pub const MAX_FILE_BYTES: u64 = 40 * 1024 * 1024;
 /// At most this many characters of text are kept per document.
-pub const MAX_TEXT_CHARS: usize = 32_000;
+pub const MAX_TEXT_CHARS: usize = 200_000;
 
 #[derive(Debug)]
 pub enum Extracted {
@@ -40,6 +40,8 @@ pub fn reads_text(ext: &str) -> bool {
             | "ods"
             | "csv"
             | "rtf"
+            | "txt"
+            | "md"
     )
 }
 
@@ -57,7 +59,7 @@ pub fn extract(path: &Path, ext: &str) -> Result<Extracted, String> {
         })?,
         "odt" | "odp" => zip_xml(path, &mut text, |n| n == "content.xml")?,
         "xlsx" | "xlsm" | "xlsb" | "xls" | "ods" => spreadsheet(path, &mut text)?,
-        "csv" => plain(path, &mut text)?,
+        "csv" | "txt" | "md" => plain(path, &mut text)?,
         "rtf" => rtf(path, &mut text)?,
         _ => return Ok(Extracted::Unsupported),
     }
@@ -401,8 +403,9 @@ mod tests {
     fn caps_text_and_skips_legacy_formats() {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().join("big.csv");
-        std::fs::write(&p, "word ".repeat(20_000)).unwrap();
-        assert!(text_of(&p, "csv").chars().count() <= MAX_TEXT_CHARS);
+        std::fs::write(&p, "word ".repeat(60_000)).unwrap();
+        let capped = text_of(&p, "csv").chars().count();
+        assert!(capped <= MAX_TEXT_CHARS && capped > MAX_TEXT_CHARS - 10);
         let legacy = dir.path().join("old.doc");
         std::fs::write(&legacy, b"\xD0\xCF\x11\xE0").unwrap();
         assert!(matches!(

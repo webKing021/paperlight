@@ -118,7 +118,8 @@ threads, so the UI never freezes. The UI only asks for *pages* of results.
 | `exclusions` | id, pattern | Dir names / globs to skip |
 | `files` | id, path (UNIQUE), name, stem, ext, kind, dir, root_id, size, created_at, modified_at, first_seen_at, last_seen_at, content_status, content_hash, is_favourite, open_count, last_opened_at | One row per document |
 | `files_fts` | name, dir (FTS5 **trigram** tokenizer, external content = files) | Substring & typo-tolerant name/path search |
-| `content_fts` | file_id, body (FTS5 unicode61 + remove_diacritics) | Extracted document text |
+| `doc_text` | id, z (zlib blob) | Extracted document text, compressed |
+| `content_fts` | body (FTS5 unicode61 + remove_diacritics, external content = `doc_text`) | Full-text index over it |
 | `tags`, `file_tags` | id, name, colour / file_id, tag_id | User tags (never written to the file) |
 | `opens` | file_id, opened_at | History for Recent/Frequent |
 | `settings` | key, value (JSON) | Theme, hotkey, extraction limits… |
@@ -183,7 +184,7 @@ Paperlight must feel invisible when you are not using it.
 | **No needless rescans** | On launch, a quick sync runs only if the last one was > 12 h ago (configurable), and only after the window is up. Manual "Rescan" is always available. |
 | **Diff, don't rewrite** | A rescan compares each file's size + modified time with the index in memory and writes **only** new/changed/deleted rows. Unchanged laptop → ~0 DB writes. |
 | **Polite I/O** | Automatic scans run in Windows *background mode* (low CPU **and** disk priority) on a small thread pool (≤ 4 threads). User-started scans run at normal priority. |
-| **Metadata only by default** | The scanner never opens files; only directory listings + metadata of document files. Content extraction (M5) is a separate, throttled, cancellable queue that skips files > 50 MB and stores at most ~100 KB of text per document. |
+| **Metadata only by default** | The scanner never opens files; only directory listings + metadata of document files. Content extraction (M5) is a separate, throttled, cancellable queue that skips files > 40 MB and keeps at most 200,000 characters of text per document, compressed. |
 | **Small footprint** | Native WebView2 (no bundled Chromium), ~10 MB installer, SQLite page cache capped at 8 MB, `auto_vacuum = INCREMENTAL` so the DB shrinks after deletions. Index for ~20k documents ≈ 5–15 MB. |
 | **Idle = idle** | No timers or polling while idle; UI re-renders only on events. |
 
@@ -245,4 +246,4 @@ paperlight/
 | Corrupt/huge files crash extractors | `catch_unwind`, per-file timeout, size cap, run off main thread |
 | Watcher misses events (buffer overflow on massive copies) | Detect overflow → targeted rescan of that root; periodic light reconcile |
 | Permission-denied folders | Skip silently, count & show in diagnostics |
-| DB growth from content text | Store extracted text only in FTS, cap per-file text (e.g. 2 MB) |
+| DB growth from content text | Text is stored zlib-compressed (`doc_text`) and indexed as FTS5 external content; capped at 200,000 characters per document |

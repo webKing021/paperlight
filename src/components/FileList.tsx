@@ -6,6 +6,7 @@ import {
   ArrowUp,
   Check,
   ClipboardCopy,
+  Copy,
   ExternalLink,
   FileSearch,
   FolderOpen,
@@ -21,7 +22,9 @@ import {
   type ReactNode,
 } from "react";
 import {
+  copyFile,
   copyPath,
+  dragOut,
   openFile,
   revealFile,
   tagWithNew,
@@ -37,6 +40,11 @@ import { FolderChooser } from "./FolderChooser";
 import { TagDot } from "./TagDot";
 
 const PAGE_SIZE = 200;
+/**
+ * Search results arrive in smaller pages: each row with a matching passage costs the backend
+ * a look inside that document, and only a screenful is visible at a time.
+ */
+const SEARCH_PAGE_SIZE = 50;
 const ROW_HEIGHT = 50;
 /** Search results have room for a line of matching text. */
 const SEARCH_ROW_HEIGHT = 70;
@@ -61,7 +69,7 @@ export type Fetcher = (offset: number, limit: number) => Promise<Page>;
  * Loads a (possibly huge) result set page by page, only fetching pages that scroll into view.
  * Old pages stay visible until a reload arrives, so live updates don't flicker.
  */
-function usePagedFiles(fetcher: Fetcher, key: string, revision: number) {
+function usePagedFiles(fetcher: Fetcher, key: string, revision: number, pageSize: number) {
   const [total, setTotal] = useState<number | null>(null);
   const pages = useRef(new Map<number, FileRow[]>());
   const loading = useRef(new Set<number>());
@@ -69,6 +77,9 @@ function usePagedFiles(fetcher: Fetcher, key: string, revision: number) {
   const lastKey = useRef(key);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
+  // Only ever changes together with `key` (search vs. browsing), which resets the pages.
+  const size = useRef(pageSize);
+  size.current = pageSize;
   const [, rerender] = useReducer((x: number) => x + 1, 0);
 
   useEffect(() => {
@@ -80,7 +91,7 @@ function usePagedFiles(fetcher: Fetcher, key: string, revision: number) {
     const wanted = sameQuery && pages.current.size ? [...pages.current.keys()] : [0];
     Promise.all(
       wanted.map((p) =>
-        fetcherRef.current(p * PAGE_SIZE, PAGE_SIZE).then((page) => [p, page] as const),
+        fetcherRef.current(p * size.current, size.current).then((page) => [p, page] as const),
       ),
     ).then(
       (results) => {
@@ -95,19 +106,24 @@ function usePagedFiles(fetcher: Fetcher, key: string, revision: number) {
   }, [key, revision]);
 
   const ensure = useCallback((index: number) => {
-    const pageNo = Math.floor(index / PAGE_SIZE);
+    const pageNo = Math.floor(index / size.current);
     if (pages.current.has(pageNo) || loading.current.has(pageNo)) return;
     loading.current.add(pageNo);
     const gen = generation.current;
-    fetcherRef.current(pageNo * PAGE_SIZE, PAGE_SIZE).then((page) => {
-      if (gen !== generation.current) return;
-      pages.current.set(pageNo, page.items);
-      rerender();
-    });
+    fetcherRef.current(pageNo * size.current, size.current).then(
+      (page) => {
+        if (gen !== generation.current) return;
+        pages.current.set(pageNo, page.items);
+        rerender();
+      },
+      // Forget the failed attempt, so the page is asked for again when it next scrolls into
+      // view instead of staying a row of placeholders for good.
+      () => gen === generation.current && loading.current.delete(pageNo),
+    );
   }, []);
 
   const getRow = useCallback(
-    (index: number) => pages.current.get(Math.floor(index / PAGE_SIZE))?.[index % PAGE_SIZE],
+    (index: number) => pages.current.get(Math.floor(index / size.current))?.[index % size.current],
     [],
   );
 
@@ -142,7 +158,12 @@ interface MenuState {
 export function FileList(props: FileListProps) {
   const { fetcher, fetchKey, revision, title, emptyTitle, emptyHint, highlight, autoSelect } =
     props;
-  const { total, getRow, ensure } = usePagedFiles(fetcher, fetchKey, revision);
+  const { total, getRow, ensure } = usePagedFiles(
+    fetcher,
+    fetchKey,
+    revision,
+    highlight ? SEARCH_PAGE_SIZE : PAGE_SIZE,
+  );
   const tags = useIndex((s) => s.tags);
   const [selected, setSelected] = useState(-1);
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -185,8 +206,8 @@ export function FileList(props: FileListProps) {
     [selected, rowHeight],
   );
 
-  // ↑/↓ PgUp/PgDn move · Enter open · Ctrl+Enter show in folder · Ctrl+Shift+C copy path ·
-  // Ctrl+D favourite · Ctrl+T tags
+  // ↑/↓ PgUp/PgDn move · Enter open · Ctrl+Enter show in folder · Ctrl+C copy the file ·
+  // Ctrl+Shift+C copy path · Ctrl+D favourite · Ctrl+T tags
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!total || menu) return;
@@ -216,6 +237,10 @@ export function FileList(props: FileListProps) {
       } else if (e.ctrlKey && e.shiftKey && key === "c") {
         e.preventDefault();
         copyPath(row);
+      } else if (e.ctrlKey && key === "c" && !window.getSelection()?.toString() && !inputSelection()) {
+        // Plain Ctrl+C still copies text when some is selected (e.g. in the search box).
+        e.preventDefault();
+        copyFile(row);
       } else if (e.ctrlKey && !e.shiftKey && key === "d") {
         e.preventDefault();
         toggleFavourite(row);
@@ -380,6 +405,8 @@ function Row({ row, rowTags, selected, highlight, onSelect, onMenu }: RowProps) 
     <div
       onClick={onSelect}
       onDoubleClick={() => openFile(row)}
+      draggable
+      onDragStart={(e) => dragOut(e, row)}
       onContextMenu={(e) => {
         e.preventDefault();
         onMenu(e.clientX, e.clientY);
@@ -498,7 +525,7 @@ function ContextMenu({ menu, tags, onClose }: { menu: MenuState; tags: Tag[]; on
   };
 
   // Keep the menu inside the window.
-  const height = 236 + Math.min(tags.length, 8) * 32;
+  const height = 268 + Math.min(tags.length, 8) * 32;
   const x = Math.min(menu.x, window.innerWidth - 248);
   const y = Math.min(menu.y, window.innerHeight - height);
 
@@ -540,6 +567,9 @@ function ContextMenu({ menu, tags, onClose }: { menu: MenuState; tags: Tag[]; on
       </MenuItem>
       <MenuItem icon={<FolderOpen className="size-4" />} hint="Ctrl+Enter" onClick={run(() => revealFile(row))}>
         Show in folder
+      </MenuItem>
+      <MenuItem icon={<Copy className="size-4" />} hint="Ctrl+C" onClick={run(() => copyFile(row))}>
+        Copy file
       </MenuItem>
       <MenuItem icon={<ClipboardCopy className="size-4" />} hint="Ctrl+Shift+C" onClick={run(() => copyPath(row))}>
         Copy path
@@ -614,6 +644,12 @@ function MenuItem({
       {hint && <span className="ml-auto text-[11.5px] text-pencil">{hint}</span>}
     </button>
   );
+}
+
+/** True when text is selected inside the focused input (so Ctrl+C should copy that text). */
+function inputSelection(): boolean {
+  const el = document.activeElement;
+  return el instanceof HTMLInputElement && el.selectionStart !== el.selectionEnd;
 }
 
 /** Renders a text passage whose matched words are wrapped in \u0002 … \u0003. */

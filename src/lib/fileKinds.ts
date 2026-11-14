@@ -1,4 +1,4 @@
-export type FileKind = "pdf" | "word" | "excel" | "slides";
+export type FileKind = "pdf" | "word" | "excel" | "slides" | "text";
 
 export interface KindInfo {
   label: string;
@@ -22,9 +22,14 @@ export const FILE_KINDS: Record<FileKind, KindInfo> = {
     label: "PowerPoint",
     extensions: ["ppt", "pptx", "pptm", "pps", "ppsx", "odp"],
   },
+  // Off until turned on in Settings → File formats.
+  text: {
+    label: "Text",
+    extensions: ["txt", "md"],
+  },
 };
 
-export const KIND_ORDER: FileKind[] = ["pdf", "word", "excel", "slides"];
+export const KIND_ORDER: FileKind[] = ["pdf", "word", "excel", "slides", "text"];
 
 /** Kinds with at least one format the user indexes (the rest get no view or bucket). */
 export function enabledKinds(disabled: string[] | undefined): FileKind[] {

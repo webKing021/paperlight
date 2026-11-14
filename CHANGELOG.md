@@ -3,6 +3,39 @@
 All notable changes to Paperlight are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.0] - 2026-11-14
+
+### Added
+- **Whole documents are searchable.** Paperlight used to read the first 32,000 characters of
+  each document (about ten pages); it now reads up to 200,000, so a phrase deep inside a long
+  report or contract is found. Documents that had hit the old limit are read again in the
+  background after updating.
+- **Drag a document out.** Drag any result straight into a folder, an email, a chat or an
+  upload box. The target gets a copy; the original never moves.
+- **Copy file** (Ctrl+C or the right-click menu) puts the file itself on the clipboard, ready
+  to paste. Ctrl+Shift+C still copies its path.
+- **Choose your own quick-search hotkey** in Settings → In the background → Change, for when
+  Alt+Space belongs to another app.
+- **Text files.** .txt and .md can be indexed and searched. They start switched off
+  (Settings → File formats), because most PCs hold thousands that aren't documents.
+- The main window opens where you left it, at the size you left it.
+
+### Changed
+- The text inside documents is stored compressed, so the index takes less space on disk even
+  though it holds far more text. The first launch after updating converts the index once.
+- Search is quicker on common words: results are ranked from the index alone, and matching
+  passages are only worked out for the rows actually shown.
+
+### Fixed
+- Opening a document on an unplugged or sleeping drive no longer removes it (with its
+  favourite and tags) from Paperlight; it says the drive isn't connected instead.
+- Rows that failed to load no longer stay as grey placeholders; they load when scrolled back
+  into view.
+- Quick search opens on the screen the cursor is on every time, not only the first time.
+- Opening and closing quick search many times no longer leaves idle threads behind.
+- The index file now really shrinks after documents are removed; before, the freed space
+  stayed inside the file.
+
 ## [1.1.1] - 2026-09-27
 
 ### Fixed

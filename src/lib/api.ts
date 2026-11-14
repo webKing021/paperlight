@@ -147,6 +147,8 @@ export interface SettingsInfo {
   /** Bytes the index takes on disk. */
   indexBytes: number;
   hotkey: string | null;
+  /** True when the hotkey is one the user chose, not a built-in default. */
+  hotkeyCustom: boolean;
   autostart: boolean;
 }
 
@@ -179,6 +181,10 @@ export const api = {
   searchFiles: (query: SearchQuery) => invoke<Page>("search_files", { query }),
   openFile: (id: number) => invoke<void>("open_file", { id }),
   revealFile: (id: number) => invoke<void>("reveal_file", { id }),
+  /** Puts the file itself on the clipboard, ready to paste into a folder, email or chat. */
+  copyFile: (id: number) => invoke<void>("copy_file", { id }),
+  /** Starts dragging the file out of the window (call from a `dragstart` handler). */
+  dragFile: (id: number) => invoke<void>("drag_file", { id }),
   fileDetails: (id: number) => invoke<FileDetails>("file_details", { id }),
   previewPdf: (id: number) => invoke<ArrayBuffer>("preview_pdf", { id }),
   addRoot: (path: string) => invoke<Root>("add_root", { path }),
@@ -201,6 +207,11 @@ export const api = {
   cancelScan: () => invoke<void>("cancel_scan"),
   shellInfo: () => invoke<ShellInfo>("shell_info"),
   setAutostart: (on: boolean) => invoke<void>("set_autostart", { on }),
+  /**
+   * Sets the quick-search hotkey ("Ctrl+Alt+F"); `null` goes back to the defaults. Resolves
+   * to the hotkey now in use, and rejects if the keys are taken by another app.
+   */
+  setHotkey: (keys: string | null) => invoke<string | null>("set_hotkey", { keys }),
   setTheme: (mode: "system" | "light" | "dark") => invoke<void>("set_theme", { mode }),
   /** Opens one of Paperlight's web pages in the browser. */
   openWebsite: (page: "author" | "repo" | "releases" | "issues") =>
