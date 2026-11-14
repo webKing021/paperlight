@@ -1,6 +1,7 @@
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { create } from "zustand";
+import { IS_WINDOWS } from "../lib/platform";
 import { useUi } from "./ui";
 
 /**
@@ -152,12 +153,14 @@ function describe(e: unknown): string {
 
 /** Checks in the background when automatic checks are on and the last one is old enough. */
 export function autoCheck() {
+  if (!IS_WINDOWS) return; // no in-app updater on Linux yet (see Settings → About)
   const { auto, checkedAt, checkNow } = useUpdates.getState();
   if (auto && (!checkedAt || Date.now() - checkedAt > INTERVAL)) checkNow();
 }
 
 /** Main window only: a check shortly after launch, then when the window comes back. */
 export function wireUpdates() {
+  if (!IS_WINDOWS) return () => {};
   const timer = setTimeout(() => {
     const { auto, checkNow } = useUpdates.getState();
     if (auto) checkNow();

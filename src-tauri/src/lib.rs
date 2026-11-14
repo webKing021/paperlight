@@ -5,6 +5,7 @@ mod db;
 mod dupes;
 mod error;
 mod indexer;
+mod paths;
 mod search;
 mod shell;
 mod state;

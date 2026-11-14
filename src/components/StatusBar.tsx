@@ -65,7 +65,7 @@ export function StatusBar() {
         </span>
       )}
       {summary && summary.errors > 0 && !scanning && (
-        <span className="shrink-0 text-pencil" title="Folders Windows did not allow Paperlight to read">
+        <span className="shrink-0 text-pencil" title="Folders Paperlight was not allowed to read">
           {summary.errors.toLocaleString()} folders skipped
         </span>
       )}

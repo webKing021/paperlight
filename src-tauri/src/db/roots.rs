@@ -26,25 +26,7 @@ pub fn list_roots(conn: &Connection) -> AppResult<Vec<Root>> {
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
-/// Normalises a folder path for storage: backslashes, and drives keep their trailing `\`.
-pub fn normalize_root(path: &str) -> String {
-    let p = path.trim().replace('/', "\\");
-    let trimmed = p.trim_end_matches('\\');
-    if trimmed.len() == 2 && trimmed.ends_with(':') {
-        format!("{trimmed}\\")
-    } else {
-        trimmed.to_string()
-    }
-}
-
-/// True when `child` is `parent` itself or lies somewhere below it (case-insensitive).
-pub fn is_within(child: &str, parent: &str) -> bool {
-    let c = child.to_lowercase();
-    let c = c.trim_end_matches('\\');
-    let p = parent.to_lowercase();
-    let p = p.trim_end_matches('\\');
-    c == p || c.starts_with(&format!("{p}\\"))
-}
+pub use crate::paths::{is_within, normalize_root};
 
 /// Adds a root. Nested roots are avoided: adding a folder already covered by a root is an
 /// error, and adding a parent of existing roots replaces them.
@@ -133,25 +115,4 @@ pub fn set_setting(conn: &Connection, key: &str, value: &str) -> AppResult<()> {
         [key, value],
     )?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn normalizes_drive_and_folder_paths() {
-        assert_eq!(normalize_root("D:"), "D:\\");
-        assert_eq!(normalize_root("D:\\"), "D:\\");
-        assert_eq!(normalize_root("D:/Work/Clients/"), "D:\\Work\\Clients");
-    }
-
-    #[test]
-    fn detects_nested_paths() {
-        assert!(is_within("D:\\Work\\Acme", "D:\\"));
-        assert!(is_within("d:\\work\\acme", "D:\\Work"));
-        assert!(is_within("D:\\Work", "D:\\Work"));
-        assert!(!is_within("D:\\Workshop", "D:\\Work"));
-        assert!(!is_within("C:\\Work", "D:\\"));
-    }
 }

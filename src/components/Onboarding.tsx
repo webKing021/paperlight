@@ -20,6 +20,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import type { FileKind } from "../lib/fileKinds";
 import { useIndex } from "../stores";
+import { IS_WINDOWS, MATCH_LABEL, START_LABEL } from "../lib/platform";
 import { useUi, type ThemeMode } from "../stores/ui";
 import { FileIcon } from "./FileIcon";
 import { Mark } from "./Mark";
@@ -226,7 +227,11 @@ function Locations({
     <>
       <Title
         title="Where are your documents?"
-        text="Paperlight starts with every drive in this PC. Remove any you don't need, or add specific folders instead."
+        text={
+          IS_WINDOWS
+            ? "Paperlight starts with every drive in this PC. Remove any you don't need, or add specific folders instead."
+            : "Paperlight starts with your home folder. Add other folders or drives, or remove what you don't need."
+        }
       />
       <div className="mt-6 divide-y divide-line overflow-hidden rounded-lg border border-line bg-sheet">
         {roots.length === 0 && (
@@ -269,7 +274,9 @@ function Locations({
       </div>
       {error && <p className="mt-2 text-[12.5px] text-danger">{error}</p>}
       <p className="mt-3 text-[12.5px] leading-relaxed text-pencil">
-        Windows, Program Files, AppData, the Recycle Bin and developer folders are always skipped.
+        {IS_WINDOWS
+          ? "Windows, Program Files, AppData, the Recycle Bin and developer folders are always skipped."
+          : "System folders, hidden folders (names starting with a dot) and developer folders are always skipped."}
         {rerun && " To remove or pause a location, use Settings → Locations."}
       </p>
 
@@ -284,7 +291,7 @@ function Locations({
 }
 
 const THEMES: { mode: ThemeMode; label: string; icon: LucideIcon }[] = [
-  { mode: "system", label: "Match Windows", icon: SunMoon },
+  { mode: "system", label: MATCH_LABEL, icon: SunMoon },
   { mode: "light", label: "Light", icon: Sun },
   { mode: "dark", label: "Dark", icon: Moon },
 ];
@@ -309,10 +316,10 @@ function Preferences({
       <Title title="A few preferences" text="You can change all of these later in Settings." />
       <div className="mt-6 divide-y divide-line overflow-hidden rounded-lg border border-line bg-sheet">
         <PrefRow
-          title="Start with Windows"
+          title={START_LABEL}
           text="Waits quietly in the tray and keeps the list current, using about 6 MB of memory."
         >
-          <Switch checked={autostart} onChange={setAutostart} label="Start with Windows" />
+          <Switch checked={autostart} onChange={setAutostart} label={START_LABEL} />
         </PrefRow>
         <PrefRow
           title="Quick search from any app"
