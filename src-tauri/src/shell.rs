@@ -39,6 +39,13 @@ pub fn started_hidden() -> bool {
     std::env::args().any(|a| a == "--hidden")
 }
 
+/// The tray's autostart item.
+const STARTUP_LABEL: &str = if cfg!(windows) {
+    "Start with Windows"
+} else {
+    "Start at login"
+};
+
 /// Settings keys.
 const HOTKEY_KEY: &str = "hotkey";
 const WINDOW_KEY: &str = "main_window";
@@ -480,7 +487,7 @@ pub fn set_hotkey(app: &AppHandle, keys: Option<&str>) -> AppResult<Option<Strin
                     let _ = shortcuts.register(old.as_str());
                 }
                 return Err(AppError::msg(format!(
-                    "{keys} can't be used: another app already has it, or Windows reserves it."
+                    "{keys} can't be used: another app already has it, or the system reserves it."
                 )));
             }
             roots::set_setting(&db.writer(), HOTKEY_KEY, keys)?;
@@ -568,7 +575,7 @@ fn build_tray(app: &AppHandle) -> AppResult<()> {
     let startup = CheckMenuItem::with_id(
         app,
         "startup",
-        "Start with Windows",
+        STARTUP_LABEL,
         true,
         autostart_enabled(app),
         None::<&str>,

@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { api, type FormatInfo, type RootInfo, type SettingsInfo } from "../lib/api";
 import { FILE_KINDS, KIND_ORDER } from "../lib/fileKinds";
 import { formatRelative, formatSize } from "../lib/format";
+import { IS_WINDOWS, MATCH_LABEL, SEP, START_LABEL, SUPER_KEY } from "../lib/platform";
 import { useIndex } from "../stores";
 import { useUi, type ThemeMode } from "../stores/ui";
 import { useUpdates } from "../stores/updates";
@@ -28,7 +29,7 @@ import { Kbd } from "./SearchBar";
 import { Switch } from "./Switch";
 
 const THEMES: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
-  { mode: "system", label: "Match Windows", icon: SunMoon },
+  { mode: "system", label: MATCH_LABEL, icon: SunMoon },
   { mode: "light", label: "Light", icon: Sun },
   { mode: "dark", label: "Dark", icon: Moon },
 ];
@@ -422,7 +423,7 @@ function Formats() {
 /** Human description of an exclusion pattern (see filters.rs for the rules). */
 function describe(pattern: string): string {
   if (pattern.startsWith("?:\\")) return "Top of every drive";
-  if (/[\\:]/.test(pattern)) return "This folder and everything in it";
+  if (pattern.includes(SEP) || (IS_WINDOWS && pattern.includes(":"))) return "This folder and everything in it";
   return "Any folder with this name";
 }
 
@@ -471,7 +472,7 @@ function Exclusions({ info, change }: { info: SettingsInfo; change: Change }) {
             value={pattern}
             onChange={(e) => setPattern(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && add(pattern)}
-            placeholder="Folder name (build) or full path (D:\Archive)"
+            placeholder={`Folder name (build) or full path (${IS_WINDOWS ? "D:\\Archive" : "/data/archive"})`}
             spellCheck={false}
             className="h-8 min-w-0 flex-1 rounded-md border border-line-strong bg-sheet px-2.5 text-[12.5px] text-ink outline-none placeholder:text-pencil focus:border-ink"
           />
@@ -495,7 +496,7 @@ function Appearance() {
   return (
     <Section title="Appearance">
       <Card>
-        <Row title="Theme" hint="Match Windows follows your light or dark mode setting.">
+        <Row title="Theme" hint={`${MATCH_LABEL} follows your light or dark mode setting.`}>
           <div className="flex rounded-lg bg-paper-2 p-0.5">
             {THEMES.map(({ mode, label, icon: Icon }) => (
               <button
@@ -533,10 +534,10 @@ function Background({ info, change }: { info: SettingsInfo; change: Change }) {
     <Section title="In the background">
       <Card>
         <Row
-          title="Start with Windows"
+          title={START_LABEL}
           hint="Starts hidden in the tray and keeps the index current. About 6 MB of memory."
         >
-          <Switch checked={info.autostart} onChange={setAutostart} label="Start with Windows" />
+          <Switch checked={info.autostart} onChange={setAutostart} label={START_LABEL} />
         </Row>
         <HotkeyRow info={info} change={change} />
       </Card>
@@ -573,7 +574,7 @@ function HotkeyRow({ info, change }: { info: SettingsInfo; change: Change }) {
       const key = hotkeyKey(e.code);
       if (!key) return; // still holding only Ctrl / Alt / Shift
       if (!e.ctrlKey && !e.altKey && !e.metaKey) {
-        toast("Hold Ctrl, Alt or the Windows key as well, so typing doesn't trigger it.", "error");
+        toast(`Hold Ctrl, Alt or the ${SUPER_KEY} key as well, so typing doesn't trigger it.`, "error");
         return;
       }
       const mods = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"];
@@ -598,7 +599,7 @@ function HotkeyRow({ info, change }: { info: SettingsInfo; change: Change }) {
       }
     >
       <Kbd className="h-6 px-2 text-[12px] text-ink-2">
-        {recording ? "Press keys…" : (info.hotkey?.replace("Super", "Win") ?? "Unavailable")}
+        {recording ? "Press keys…" : (info.hotkey?.replace("Super", SUPER_KEY) ?? "Unavailable")}
       </Kbd>
       {info.hotkeyCustom && !recording && <Button onClick={() => saveRef.current(null)}>Reset</Button>}
       <Button onClick={() => setRecording((r) => !r)}>{recording ? "Cancel" : "Change"}</Button>
@@ -731,6 +732,31 @@ function About() {
 
 /** Paperlight updates itself from GitHub releases (see stores/updates.ts). */
 function Updates() {
+  return IS_WINDOWS ? <InAppUpdates /> : <ManualUpdates />;
+}
+
+/** Where the in-app updater isn't available yet (Linux): say so and point at the downloads. */
+function ManualUpdates() {
+  const toast = useUi((s) => s.toast);
+  return (
+    <Row
+      icon={
+        <IconBox>
+          <Download className="size-4" strokeWidth={1.7} />
+        </IconBox>
+      }
+      title="Updates"
+      hint="On Linux, Paperlight doesn't update itself yet. New versions are on the releases page; installing one keeps your index, favourites and tags."
+    >
+      <Button onClick={() => api.openWebsite("releases").catch((e) => toast(String(e), "error"))}>
+        Releases
+        <ArrowUpRight className="size-3.5" strokeWidth={2} />
+      </Button>
+    </Row>
+  );
+}
+
+function InAppUpdates() {
   const status = useUpdates((s) => s.status);
   const checkedAt = useUpdates((s) => s.checkedAt);
   const auto = useUpdates((s) => s.auto);

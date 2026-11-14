@@ -7,6 +7,7 @@ use rusqlite::Connection;
 
 use crate::db::roots;
 use crate::error::AppResult;
+use crate::paths::SEP;
 
 /// Indexed extensions and the document kind each one maps to.
 pub const EXTENSIONS: &[(&str, &str)] = &[
@@ -140,6 +141,7 @@ pub fn is_ignored_file(name: &str) -> bool {
 
 /// Seeded into the `exclusions` table on first run; users can edit them later.
 /// `?:\` matches any drive letter; a bare name matches a folder with that name anywhere.
+#[cfg(windows)]
 pub const DEFAULT_EXCLUSIONS: &[&str] = &[
     "?:\\Windows",
     "?:\\Windows.old",
@@ -150,6 +152,28 @@ pub const DEFAULT_EXCLUSIONS: &[&str] = &[
     "?:\\PerfLogs",
     "?:\\System Volume Information",
     "AppData",
+    "node_modules",
+    "__pycache__",
+    "site-packages",
+    "venv",
+];
+
+/// Seeded into the `exclusions` table on first run; users can edit them later. A path covers
+/// that folder and everything in it; a bare name matches a folder with that name anywhere.
+/// (Dot-folders such as `.cache`, `.config` and `.local` are always skipped anyway.)
+#[cfg(not(windows))]
+pub const DEFAULT_EXCLUSIONS: &[&str] = &[
+    "/proc",
+    "/sys",
+    "/dev",
+    "/run",
+    "/tmp",
+    "/snap",
+    "/usr",
+    "/var",
+    "/boot",
+    "/lost+found",
+    "snap",
     "node_modules",
     "__pycache__",
     "site-packages",
@@ -168,12 +192,21 @@ impl Exclusions {
     pub fn new<S: AsRef<str>>(patterns: &[S]) -> Self {
         let mut ex = Self::default();
         for p in patterns {
-            let p = p.as_ref().trim().replace('/', "\\");
-            let p = p.trim_end_matches('\\').to_lowercase();
+            let p = p.as_ref().trim();
+            // Windows accepts either slash; elsewhere `\` is an ordinary character.
+            let p = if cfg!(windows) {
+                p.replace('/', "\\")
+            } else {
+                p.to_string()
+            };
+            let p = match p.trim_end_matches(SEP) {
+                "" if p.starts_with(SEP) => continue, // the root itself can't be excluded
+                trimmed => trimmed.to_lowercase(),
+            };
             if p.is_empty() {
                 continue;
             }
-            if p.contains('\\') || p.contains(':') {
+            if p.contains(SEP) || (cfg!(windows) && p.contains(':')) {
                 ex.prefixes.push(p);
             } else {
                 ex.names.push(p);
@@ -183,7 +216,20 @@ impl Exclusions {
     }
 
     /// `path` is the full folder path, `name` its last component.
+    #[cfg(test)]
     pub fn is_excluded_dir(&self, path: &str, name: &str) -> bool {
+        self.excluded_dir(None, path, name)
+    }
+
+    /// Like `is_excluded_dir`, for a folder inside the location `root`. A path rule that
+    /// covers the location itself is ignored: a folder the user chose explicitly is always
+    /// indexed, even if it lies inside an excluded one (say a location under `/var`).
+    pub fn is_excluded_dir_in(&self, root: &str, path: &str, name: &str) -> bool {
+        let root = root.trim_end_matches(SEP).to_lowercase();
+        self.excluded_dir(Some(&root), path, name)
+    }
+
+    fn excluded_dir(&self, root: Option<&str>, path: &str, name: &str) -> bool {
         if name.starts_with('$') || name.starts_with('.') {
             return true;
         }
@@ -192,45 +238,52 @@ impl Exclusions {
             return true;
         }
         let path = path.to_lowercase();
-        self.prefixes.iter().any(|prefix| {
-            let (path, prefix) = match prefix.strip_prefix('?') {
-                // Any drive: compare everything after the drive letter.
-                Some(rest) => match path.get(1..) {
-                    Some(p) => (p, rest),
-                    None => return false,
-                },
-                None => (path.as_str(), prefix.as_str()),
-            };
-            path == prefix
-                || (path.len() > prefix.len()
-                    && path.starts_with(prefix)
-                    && path.as_bytes()[prefix.len()] == b'\\')
-        })
+        self.prefixes
+            .iter()
+            .any(|prefix| covers(prefix, &path) && !root.is_some_and(|r| covers(prefix, r)))
     }
 
     /// True if a folder between `root` and `path` is excluded. Folders *above* the root are
     /// never considered: a location the user chose explicitly is always honoured. The last
     /// component of `path` is not checked either, since it may be a file.
     pub fn is_excluded_below(&self, root: &str, path: &Path) -> bool {
-        let root = root.trim_end_matches('\\');
+        let location = root;
+        let root = root.trim_end_matches(SEP);
         let full = path.to_string_lossy();
         if full.len() <= root.len() || !full.is_char_boundary(root.len()) {
             return false;
         }
         let mut current = full[..root.len()].to_string();
         let parts: Vec<&str> = full[root.len()..]
-            .split('\\')
+            .split(SEP)
             .filter(|p| !p.is_empty())
             .collect();
         for name in &parts[..parts.len().saturating_sub(1)] {
-            current.push('\\');
+            current.push(SEP);
             current.push_str(name);
-            if self.is_excluded_dir(&current, name) {
+            if self.is_excluded_dir_in(location, &current, name) {
                 return true;
             }
         }
         false
     }
+}
+
+/// True when the lower-case path rule `prefix` covers the lower-case `path`: the folder
+/// itself or anything inside it. A rule starting with `?` applies to any drive letter.
+fn covers(prefix: &str, path: &str) -> bool {
+    let (path, prefix) = match prefix.strip_prefix('?') {
+        // Any drive: compare everything after the drive letter.
+        Some(rest) => match path.get(1..) {
+            Some(p) => (p, rest),
+            None => return false,
+        },
+        None => (path, prefix),
+    };
+    path == prefix
+        || (path.len() > prefix.len()
+            && path.starts_with(prefix)
+            && path[prefix.len()..].starts_with(SEP))
 }
 
 /// True for names that are clearly some other kind of file (`.tmp`, `.log`, `.jpg`…), used to
@@ -294,6 +347,7 @@ mod tests {
         assert!(!is_ignored_file("Budget.xlsx"));
     }
 
+    #[cfg(windows)]
     #[test]
     fn excludes_by_name_prefix_and_any_drive() {
         let ex = Exclusions::new(DEFAULT_EXCLUSIONS);
@@ -307,6 +361,25 @@ mod tests {
         assert!(!ex.is_excluded_dir("C:\\Users\\me\\Documents", "Documents"));
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn a_location_inside_an_excluded_path_is_still_indexed() {
+        let ex = Exclusions::new(DEFAULT_EXCLUSIONS);
+        let dir = r"C:\ProgramData\Scans\2024";
+        assert!(ex.is_excluded_dir_in(r"C:\", dir, "2024"));
+        assert!(!ex.is_excluded_dir_in(r"C:\ProgramData\Scans", dir, "2024"));
+        assert!(ex.is_excluded_dir_in(
+            r"C:\ProgramData\Scans",
+            r"C:\ProgramData\Scans\node_modules",
+            "node_modules"
+        ));
+        assert!(!ex.is_excluded_below(
+            r"C:\ProgramData\Scans",
+            Path::new(r"C:\ProgramData\Scans\2024\a.pdf")
+        ));
+    }
+
+    #[cfg(windows)]
     #[test]
     fn excludes_absolute_prefix() {
         let ex = Exclusions::new(&["D:\\Archive\\Old"]);
@@ -315,6 +388,46 @@ mod tests {
         assert!(!ex.is_excluded_dir("D:\\Archive\\Older", "Older"));
     }
 
+    #[cfg(not(windows))]
+    #[test]
+    fn unix_exclusions() {
+        let ex = Exclusions::new(DEFAULT_EXCLUSIONS);
+        assert!(ex.is_excluded_dir("/proc", "proc"));
+        assert!(ex.is_excluded_dir("/usr/share/doc", "doc"));
+        assert!(ex.is_excluded_dir("/home/me/web/node_modules", "node_modules"));
+        assert!(ex.is_excluded_dir("/home/me/.cache", ".cache"));
+        assert!(!ex.is_excluded_dir("/usrdata", "usrdata"));
+        assert!(!ex.is_excluded_dir("/home/me/Documents", "Documents"));
+
+        let ex = Exclusions::new(&["/srv/Archive/Old/", "/"]);
+        assert!(ex.is_excluded_dir("/srv/archive/old/2019", "2019"));
+        assert!(!ex.is_excluded_dir("/srv/Archive/Older", "Older"));
+        assert!(!ex.is_excluded_dir("/home", "home")); // "/" alone excludes nothing
+
+        let ex = Exclusions::new(DEFAULT_EXCLUSIONS);
+        let below = |root: &str, p: &str| ex.is_excluded_below(root, Path::new(p));
+        assert!(below("/", "/usr/share/doc/a.pdf"));
+        assert!(below("/home/me", "/home/me/web/node_modules/a/b.pdf"));
+        assert!(below("/home/me", "/home/me/.config/x.pdf"));
+        assert!(!below("/home/me", "/home/me/Work/.hidden-name.pdf"));
+        assert!(!below("/home/me", "/home/me/Work/Report.pdf"));
+        // A location the user picked inside an excluded or hidden folder is still honoured.
+        assert!(!below("/var/docs", "/var/docs/a.pdf"));
+        assert!(!below("/var/docs", "/var/docs/2024/a.pdf"));
+        assert!(below("/var/docs", "/var/docs/node_modules/a.pdf"));
+        assert!(ex.is_excluded_dir_in("/", "/var/docs/2024", "2024"));
+        assert!(!ex.is_excluded_dir_in("/var/docs/", "/var/docs/2024", "2024"));
+        assert!(!below(
+            "/home/me/.cache/docs",
+            "/home/me/.cache/docs/Work/a.pdf"
+        ));
+        assert!(below(
+            "/home/me/.cache/docs",
+            "/home/me/.cache/docs/.git/a.pdf"
+        ));
+    }
+
+    #[cfg(windows)]
     #[test]
     fn checks_folders_between_root_and_file_only() {
         let ex = Exclusions::new(DEFAULT_EXCLUSIONS);

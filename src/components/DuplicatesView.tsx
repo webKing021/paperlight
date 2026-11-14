@@ -2,6 +2,7 @@ import { RotateCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api, events, type DupGroup, type DupProgress } from "../lib/api";
 import { formatSize } from "../lib/format";
+import { SEP } from "../lib/platform";
 import { DocRow, PageHeader, SectionLabel } from "./DocRow";
 import { EmptyState } from "./FileList";
 
@@ -104,17 +105,17 @@ export default function DuplicatesView() {
 
 /** Folders of a set's copies, minus the part they all share, so the difference is visible. */
 function GroupRows({ group }: { group: DupGroup }) {
-  const parts = group.files.map((f) => f.dir.split("\\"));
+  const parts = group.files.map((f) => f.dir.split(SEP));
   let shared = 0;
   while (parts.every((p) => p.length > shared + 1 && p[shared] === parts[0][shared])) shared++;
   return (
     <>
       {group.files.map((f, i) => {
-        const rest = parts[i].slice(shared).join("\\");
+        const rest = parts[i].slice(shared).join(SEP);
         const folder =
           shared > 1 ? (
             <>
-              <span className="text-pencil/70">…\</span>
+              <span className="text-pencil/70">…{SEP}</span>
               <span className="text-graphite">{rest}</span>
             </>
           ) : undefined;

@@ -173,6 +173,7 @@ impl Walker<'_> {
         on_progress: &mut impl FnMut(&ScanProgress),
     ) -> AppResult<bool> {
         let ex = Arc::clone(self.exclusions);
+        let location = self.root.path.clone();
         let walk = WalkDir::new(&self.root.path)
             .skip_hidden(false)
             .follow_links(false)
@@ -183,7 +184,8 @@ impl Walker<'_> {
             .process_read_dir(move |_depth, _dir, _state, children| {
                 // Prune excluded folders before jwalk descends into them.
                 children.retain(|entry| match entry {
-                    Ok(e) if e.file_type().is_dir() => !ex.is_excluded_dir(
+                    Ok(e) if e.file_type().is_dir() => !ex.is_excluded_dir_in(
+                        &location,
                         &e.path().to_string_lossy(),
                         &e.file_name().to_string_lossy(),
                     ),
