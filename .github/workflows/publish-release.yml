@@ -1,0 +1,36 @@
+name: Publish release
+
+# Publishes the draft a finished "Release" run produced, but only when that was asked for:
+# the repository variable AUTO_PUBLISH must hold exactly that tag (for example v1.2.2).
+# Without it, a release stays a draft until someone publishes it by hand, as before.
+#   gh variable set AUTO_PUBLISH --body v1.2.3     (before or while the release builds)
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      vars.AUTO_PUBLISH != '' &&
+      vars.AUTO_PUBLISH == github.event.workflow_run.head_branch
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.event.workflow_run.head_branch }}
+    steps:
+      - name: Check the draft is complete
+        run: |
+          assets=$(gh api "repos/$GH_REPO/releases" --jq ".[] | select(.tag_name==\"$TAG\" and .draft) | .assets[].name")
+          echo "$assets"
+          for pattern in 'latest\.json$' 'setup\.exe$' 'setup\.exe\.sig$' '\.deb$' '\.rpm$' '\.AppImage$'; do
+            echo "$assets" | grep -Eq "$pattern" || { echo "::error::The draft for $TAG has no file matching $pattern; leaving it unpublished."; exit 1; }
+          done
+
+      - name: Publish
+        run: gh release edit "$TAG" --draft=false --latest
