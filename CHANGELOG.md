@@ -3,6 +3,13 @@
 All notable changes to Paperlight are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.2] - 2026-11-15
+
+### Security
+- Updated the libraries Paperlight is built on to versions without known security issues:
+  the reader for Word, PowerPoint and Excel files, the secure connection used by the update
+  check, and the updater itself. Nothing changes in how Paperlight looks or works.
+
 ## [1.2.1] - 2026-11-15
 
 ### Added
