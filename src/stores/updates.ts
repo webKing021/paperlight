@@ -6,8 +6,8 @@ import { useUi } from "./ui";
 
 /**
  * In-app updates. New versions are published on GitHub Releases with a signed latest.json;
- * Paperlight reads it once per launch and at most twice a day after that (one small request,
- * no timers while idle) and downloads nothing until the user chooses "Update now".
+ * Paperlight reads it a few seconds after each launch and at most twice a day after that (one
+ * small request, no timers while idle) and downloads nothing until the user chooses "Update now".
  */
 export type UpdateStatus =
   | { state: "idle" }
@@ -25,7 +25,7 @@ interface UpdateState {
   /** Look for updates on launch, and when the window comes back (at most every 12 hours). */
   auto: boolean;
   setAuto: (on: boolean) => void;
-  /** The "new version" dialog (opens by itself once per version). */
+  /** The "new version" dialog (opens by itself once each time Paperlight is started). */
   dialogOpen: boolean;
   openDialog: () => void;
   closeDialog: () => void;
@@ -36,15 +36,21 @@ interface UpdateState {
 
 const AUTO_KEY = "paperlight.updates.auto";
 const CHECKED_KEY = "paperlight.updates.checkedAt";
-/** The last version whose dialog was shown, so "Later" isn't asked again on every launch. */
-const SEEN_KEY = "paperlight.updates.seen";
 const INTERVAL = 12 * 3_600_000;
-/** Let the launch sync and first paint go first. */
-const LAUNCH_DELAY = 20_000;
+/** Let the first paint go first. The check is one small request, so it need not wait long. */
+const LAUNCH_DELAY = 3_000;
 
 /** The update found by the last check (holds a native resource, so kept out of the store). */
 let pending: Update | null = null;
 let checking = false;
+/** "Check for updates" was pressed while a background check was still running. */
+let askedMeanwhile = false;
+/**
+ * The version this launch has already announced with the dialog. Each start of Paperlight
+ * announces a waiting update once; "Later" then leaves only the sidebar entry until the next
+ * start. (It used to be once per version for good, so an update put off once was easy to miss.)
+ */
+let announced: string | null = null;
 
 function load(key: string): string | null {
   try {
@@ -75,19 +81,28 @@ export const useUpdates = create<UpdateState>((set, get) => ({
   openDialog: () => {
     const { status } = get();
     if ("version" in status) {
-      save(SEEN_KEY, status.version);
+      announced = status.version;
       set({ dialogOpen: true });
     }
   },
   closeDialog: () => set({ dialogOpen: false }),
   checkNow: async (manual = false) => {
     const busy = get().status.state;
-    if (checking || busy === "downloading" || busy === "installing") return;
+    if (busy === "downloading" || busy === "installing") return;
+    if (checking) {
+      // A background check is already on its way: let it answer as the manual one would.
+      if (manual) {
+        askedMeanwhile = true;
+        set({ status: { state: "checking" } });
+      }
+      return;
+    }
     checking = true;
     // Background checks keep showing what is known (no flicker of the sidebar entry).
     if (manual) set({ status: { state: "checking" } });
     try {
       const update = await check();
+      manual = manual || askedMeanwhile;
       await pending?.close().catch(() => {});
       pending = update;
       const checkedAt = Date.now();
@@ -97,13 +112,15 @@ export const useUpdates = create<UpdateState>((set, get) => ({
         return;
       }
       set({ checkedAt, status: { state: "available", version: update.version, notes: update.body ?? "" } });
-      // Announce each new version once; after that the sidebar entry keeps it in reach.
-      if (manual || load(SEEN_KEY) !== update.version) get().openDialog();
+      // Announce it once per launch; after that the sidebar entry keeps it in reach.
+      if (manual || announced !== update.version) get().openDialog();
     } catch (e) {
       // Offline or GitHub unreachable: only worth mentioning when the user asked.
-      if (manual) set({ status: { state: "error", message: describe(e) } });
+      if (manual || askedMeanwhile) set({ status: { state: "error", message: describe(e) } });
+      else if (get().status.state === "checking") set({ status: { state: "idle" } });
     } finally {
       checking = false;
+      askedMeanwhile = false;
     }
   },
   install: async () => {
