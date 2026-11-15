@@ -36,13 +36,16 @@ pub struct Overview {
 
 #[tauri::command]
 pub fn get_overview(app: AppHandle, state: State<'_, AppState>) -> AppResult<Overview> {
+    // Asked before the reader is taken: the watcher takes its own lock first and the reader
+    // second when it restarts, so taking them here in the other order could lock both up.
+    let watching = watcher::watched_locations(&app);
     let conn = state.db.reader();
     Ok(Overview {
         stats: files::stats(&conn)?,
         roots: roots::list_roots(&conn)?,
         last_scan_at: roots::get_setting(&conn, "last_scan_at")?.and_then(|v| v.parse().ok()),
         scanning: state.scanning.load(Ordering::SeqCst),
-        watching: watcher::watched_locations(&app),
+        watching,
         content_pending: crate::content::pending_count(&conn)?,
         disabled_formats: Formats::load(&conn)?.disabled_list(),
     })
@@ -344,18 +347,25 @@ pub struct SettingsInfo {
 
 #[tauri::command]
 pub fn get_settings(app: AppHandle, state: State<'_, AppState>) -> AppResult<SettingsInfo> {
-    let conn = state.db.reader();
-    let counts = files::count_by_root(&conn)?;
-    let roots = roots::list_roots(&conn)?
-        .into_iter()
-        .map(|root| RootInfo {
-            count: counts.get(&root.id).copied().unwrap_or(0),
-            root,
-        })
-        .collect();
+    // The database reader is one connection behind a lock that can't be taken twice by the
+    // same thread. `shell::hotkey_is_custom` reads a setting through it, so the reader must be
+    // let go before the shell is asked anything: holding it across that call (as 1.2.0 to
+    // 1.2.2 did) locks this thread up for good, and with it every later database read.
+    let (roots, exclusions) = {
+        let conn = state.db.reader();
+        let counts = files::count_by_root(&conn)?;
+        let roots = roots::list_roots(&conn)?
+            .into_iter()
+            .map(|root| RootInfo {
+                count: counts.get(&root.id).copied().unwrap_or(0),
+                root,
+            })
+            .collect();
+        (roots, roots::list_exclusions(&conn)?)
+    };
     Ok(SettingsInfo {
         roots,
-        exclusions: roots::list_exclusions(&conn)?,
+        exclusions,
         index_bytes: state.db.size_on_disk(),
         hotkey: shell::hotkey(&app),
         hotkey_custom: shell::hotkey_is_custom(&app),

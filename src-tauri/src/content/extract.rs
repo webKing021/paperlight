@@ -201,8 +201,29 @@ fn xml_text(xml: &[u8], text: &mut Collector) -> Result<(), String> {
     }
 }
 
+/// A zip-based spreadsheet is not read when its parts would unpack to more than this in total.
+const MAX_UNPACKED_BYTES: u64 = 512 * 1024 * 1024;
+
+/// What a zip says all its entries unpack to, or `None` if `bytes` is not a zip.
+fn zip_unpacked_size(bytes: &[u8]) -> Option<u64> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
+    let mut total = 0u64;
+    for i in 0..zip.len() {
+        if let Ok(entry) = zip.by_index_raw(i) {
+            total = total.saturating_add(entry.size());
+        }
+    }
+    Some(total)
+}
+
 fn spreadsheet(path: &Path, text: &mut Collector) -> Result<(), String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    // xlsx, xlsm, xlsb and ods are zips, and the reader below loads whole sheets into memory.
+    // A small file built to unpack to gigabytes (a "zip bomb") would exhaust it, which ends
+    // the process and can't be caught, so such a file is refused before it is opened.
+    if zip_unpacked_size(&bytes).is_some_and(|size| size > MAX_UNPACKED_BYTES) {
+        return Err("this spreadsheet unpacks to more than Paperlight reads".into());
+    }
     let mut book = open_workbook_auto_from_rs(Cursor::new(bytes)).map_err(|e| e.to_string())?;
     for name in book.sheet_names() {
         if text.full() {
@@ -414,6 +435,18 @@ mod tests {
             extract(&legacy, "doc").unwrap(),
             Extracted::Unsupported
         ));
+    }
+
+    #[test]
+    fn sees_how_large_a_zip_unpacks() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("sheet.xlsx");
+        // Three megabytes of the same letter shrink to a few kilobytes on disk.
+        write_zip(&p, &[("xl/worksheets/sheet1.xml", &"a".repeat(3_000_000))]);
+        let bytes = std::fs::read(&p).unwrap();
+        assert!(bytes.len() < 100_000);
+        assert_eq!(zip_unpacked_size(&bytes), Some(3_000_000));
+        assert_eq!(zip_unpacked_size(b"not a zip"), None);
     }
 
     #[test]

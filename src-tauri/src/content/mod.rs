@@ -16,7 +16,7 @@ use rusqlite::{params, Connection};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::db::Db;
+use crate::db::{roots, Db};
 use crate::error::AppResult;
 use crate::indexer::priority;
 use crate::state::AppState;
@@ -66,9 +66,60 @@ pub fn wake(app: &AppHandle) {
     }
 }
 
+/// Setting that names the document being read right now, as `<id>:<attempts>`.
+///
+/// A parser can do worse than panic: run out of memory or overflow its stack, which ends the
+/// whole process and can't be caught. The document would then still be waiting on the next
+/// launch, be read first again (newest first) and end Paperlight again, every time. So the
+/// reader notes which document it is on, and gives up on one that was being read when
+/// Paperlight died [`MAX_INTERRUPTED`] times in a row. Twice, not once, so that a shutdown or
+/// an update that happens to interrupt a read doesn't cost a healthy document its text.
+const READING_KEY: &str = "content_reading";
+const MAX_INTERRUPTED: u32 = 2;
+
+fn reading_note(conn: &Connection) -> AppResult<Option<(i64, u32)>> {
+    Ok(roots::get_setting(conn, READING_KEY)?.and_then(|v| {
+        let (id, attempts) = v.split_once(':')?;
+        Some((id.parse().ok()?, attempts.parse().ok()?))
+    }))
+}
+
+fn clear_reading_note(conn: &Connection) -> AppResult<()> {
+    conn.execute("DELETE FROM settings WHERE key = ?1", [READING_KEY])?;
+    Ok(())
+}
+
+/// Run once when the reader starts: marks a document that keeps ending Paperlight as failed.
+fn give_up_on_crasher(db: &Db) -> AppResult<()> {
+    let conn = db.writer();
+    if let Some((id, attempts)) = reading_note(&conn)? {
+        if attempts >= MAX_INTERRUPTED {
+            conn.execute(
+                "UPDATE files SET content_status = ?2 WHERE id = ?1 AND content_status = 0",
+                params![id, FAILED],
+            )?;
+            clear_reading_note(&conn)?;
+        }
+    }
+    Ok(())
+}
+
+/// Notes that `id` is about to be read, counting up if the last read of it never finished.
+fn note_reading(db: &Db, id: i64) -> AppResult<()> {
+    let conn = db.writer();
+    let attempts = match reading_note(&conn)? {
+        Some((previous, attempts)) if previous == id => attempts + 1,
+        _ => 1,
+    };
+    roots::set_setting(&conn, READING_KEY, &format!("{id}:{attempts}"))
+}
+
 fn run(app: AppHandle, rx: Receiver<()>) {
     priority::enter_background();
     let state = app.state::<AppState>();
+    if let Err(e) = give_up_on_crasher(&state.db) {
+        eprintln!("paperlight: could not check the last read: {e}");
+    }
     let mut last_emit = Instant::now();
     let mut busy = false;
     loop {
@@ -87,6 +138,9 @@ fn run(app: AppHandle, rx: Receiver<()>) {
         }
         busy = true;
         for job in jobs {
+            if let Err(e) = note_reading(&state.db, job.id) {
+                eprintln!("paperlight: could not note the read of {}: {e}", job.path);
+            }
             let (status, text) = read_with_timeout(&job);
             if let Err(e) = store(&state.db, &job, status, text.as_deref()) {
                 eprintln!("paperlight: could not store text of {}: {e}", job.path);
@@ -160,6 +214,83 @@ fn store(db: &Db, job: &Job, status: i64, text: Option<&str>) -> AppResult<()> {
          WHERE id = ?1 AND size = ?3 AND modified_at IS ?4",
         params![job.id, status, job.size, job.modified_at],
     )?;
+    // The read finished (well or badly), so it is no longer "the one being read".
+    clear_reading_note(&tx)?;
     tx.commit()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::files::{insert_batch, FileRecord};
+
+    fn db_with_file() -> (tempfile::TempDir, Db, Job) {
+        let tmp = tempfile::tempdir().unwrap();
+        let db = Db::open(&tmp.path().join("t.db")).unwrap();
+        {
+            let mut conn = db.writer();
+            let root = roots::add_root(&mut conn, "D:\\").unwrap();
+            let record = FileRecord {
+                path: "D:\\bomb.xlsx".into(),
+                name: "bomb.xlsx".into(),
+                ext: "xlsx".into(),
+                kind: "excel",
+                dir: "D:".into(),
+                size: 10,
+                created_at: None,
+                modified_at: Some(1),
+            };
+            let tx = conn.transaction().unwrap();
+            insert_batch(&tx, root.id, 0, &[record]).unwrap();
+            tx.commit().unwrap();
+        }
+        let job = next_jobs(&db).unwrap().remove(0);
+        (tmp, db, job)
+    }
+
+    fn status(db: &Db, id: i64) -> i64 {
+        db.reader()
+            .query_row(
+                "SELECT content_status FROM files WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn a_document_that_keeps_ending_the_app_is_given_up_on() {
+        let (_tmp, db, job) = db_with_file();
+
+        // First launch: the read starts and Paperlight dies before it is stored.
+        give_up_on_crasher(&db).unwrap();
+        note_reading(&db, job.id).unwrap();
+
+        // Second launch: one interrupted read can be bad luck, so it is tried again.
+        give_up_on_crasher(&db).unwrap();
+        assert_eq!(status(&db, job.id), 0);
+        note_reading(&db, job.id).unwrap();
+
+        // Third launch: twice in a row is the document's doing. It is not read again.
+        give_up_on_crasher(&db).unwrap();
+        assert_eq!(status(&db, job.id), FAILED);
+        assert!(next_jobs(&db).unwrap().is_empty());
+        assert_eq!(reading_note(&db.reader()).unwrap(), None);
+    }
+
+    #[test]
+    fn a_read_that_finishes_leaves_no_note_behind() {
+        let (_tmp, db, job) = db_with_file();
+        note_reading(&db, job.id).unwrap();
+        assert_eq!(reading_note(&db.reader()).unwrap(), Some((job.id, 1)));
+
+        store(&db, &job, DONE, Some("some text")).unwrap();
+        assert_eq!(status(&db, job.id), DONE);
+        assert_eq!(reading_note(&db.reader()).unwrap(), None);
+
+        // So an interruption much later, on a new version of the file, starts counting at one.
+        note_reading(&db, job.id).unwrap();
+        assert_eq!(reading_note(&db.reader()).unwrap(), Some((job.id, 1)));
+    }
 }
