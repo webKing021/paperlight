@@ -3,6 +3,28 @@
 All notable changes to Paperlight are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.3] - 2026-11-15
+
+### Fixed
+- **Settings opens again.** In 1.2.0 to 1.2.2, opening Settings left the page empty, and after
+  that the lists and search stopped answering until Paperlight was restarted.
+- **You are told about an update when you open Paperlight.** The "new version" window now
+  appears each time Paperlight is started while an update is waiting, a few seconds after the
+  window opens. Before, it appeared once per version and only after twenty seconds, so an
+  update put off once was easy to miss. "Later" still leaves it in the sidebar.
+- "Check for updates" is no longer ignored when Paperlight happens to be checking by itself
+  at that moment.
+- Updating no longer stops with "Error opening file for writing". The installer now waits
+  until the running Paperlight has really let go of its files before it replaces them.
+- A damaged document that ends Paperlight while its text is being read is set aside after the
+  second time. Before, it would have ended Paperlight again at every start.
+
+### Security
+- Spreadsheets built to unpack to an enormous size (a "zip bomb") are refused before they are
+  opened.
+- The release build now pins the outside tools it uses to exact versions, since it holds the
+  key that signs updates.
+
 ## [1.2.2] - 2026-11-15
 
 ### Security

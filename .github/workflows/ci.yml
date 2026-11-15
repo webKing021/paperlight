@@ -5,6 +5,10 @@ on:
     branches: [main, dev]
   pull_request:
 
+# Checks only read the code; nothing here needs to write to the repository.
+permissions:
+  contents: read
+
 jobs:
   check:
     strategy:
@@ -26,11 +30,11 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           components: clippy, rustfmt
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: src-tauri
           # Only main saves a cache; dev and pull requests reuse it (keeps the 10 GB quota free).
