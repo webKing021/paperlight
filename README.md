@@ -21,6 +21,7 @@
 <p align="center">
   <a href="https://github.com/webKing021/paperlight/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/webKing021/paperlight?color=18181b&label=release"></a>
   <a href="https://github.com/webKing021/paperlight/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/webKing021/paperlight/ci.yml?branch=main&label=ci"></a>
+  <a href="#install"><img alt="winget install webKing021.Paperlight" src="https://img.shields.io/winget/v/webKing021.Paperlight?color=18181b&label=winget"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-e09c26"></a>
 </p>
 
@@ -87,11 +88,22 @@ There are good search tools already. Which one fits depends on what you are look
 
 ## Install
 
+With [winget](https://learn.microsoft.com/windows/package-manager/winget/), which comes with
+Windows 10 and 11:
+
+```
+winget install webKing021.Paperlight
+```
+
+Or by hand:
+
 1. Download `Paperlight_x.y.z_x64-setup.exe` from the [latest release](https://github.com/webKing021/paperlight/releases/latest).
 2. Run it. Windows 10/11, 64-bit; no admin rights needed. SmartScreen may warn because the
    installer isn't code-signed yet: *More info → Run anyway*.
-3. The welcome screens walk you through setup: pick the drives or folders to index, choose a
-   few preferences and press **Start indexing**. Paperlight is usable while the first scan runs.
+
+Either way, the welcome screens walk you through setup: pick the drives or folders to index,
+choose a few preferences and press **Start indexing**. Paperlight is usable while the first
+scan runs.
 
 ### Linux (beta)
 
